@@ -117,16 +117,41 @@ be inconsistent with how the rest of the return treats a joint filing and could 
 result that looks precise but is not, on a live SE-tax number. Deferred with this note rather
 than attempted; same treatment as the B6 QBI wage-cap allocation gap above. No code changed.
 
-## LIMITATION PAL-MFS — §469(i)(5) half-allowance for spouses living apart
+## LIMITATION PAL-MFS — §469(i)(5) half-allowance for spouses living apart — CLOSED Oct 18 2026
 
-**RATIFIED Jul 8 2026 (owner):** retained as a documented boundary. Exposure direction: conservative (overstates tax; the lived-apart $12,500 allowance is shown as $0).
+**CLOSED (OCT-4 once-over L-5):** Step 2 now shows an MFS filer with a rental card the
+attestation "I lived apart from my spouse for the entire year" (`mfsLivedApartAllYear`);
+`calc469iAllowance()` returns the $12,500 allowance phased out from $50,000 when it is set,
+and $0 otherwise (§469(i)(5)(A)/(B)). Constants `PAL_SPECIAL_ALLOWANCE_BASE_MFS_APART` /
+`PAL_PHASE_OUT_START_MFS_APART` in constants.js; SPECs in `taxCalc-oct4-once-over.test.js`.
+History: ratified Jul 8 2026 as a conservative $0 default; the article prose
+(`articles.js`, "MFS filers who lived apart … $12,500") no longer contradicts the engine.
 
+## LIMITATION SENIOR-70103 — OBBBA §70103 senior deduction — CLOSED Oct 18 2026 (with two boundaries)
 
-`calc469iAllowance()` models MFS as $0 allowance at every MAGI level. The
-statute grants a $12,500 half-allowance to an MFS filer who lived apart from
-their spouse the entire year (§469(i)(5)(A)(ii)/(B)); the app does not collect
-a lived-apart-all-year fact, so the conservative $0 default applies. This
-matches the engine's behavior since before the M1 centralization.
+**CLOSED (OCT-4 once-over N-12a):** two Step 2 attestations ("I was 65 or older on Dec 31",
+and for MFJ "My spouse was …") drive `calcSeniorDeduction()`: $6,000 per qualified individual
+for 2025–2028, reduced by 6% of MAGI above $75,000 ($150,000 joint), $0 for MFS (joint return
+required, §63(f)(5)(B)(ii)). Boundaries that remain: (1) MAGI is pre-NOL AGI (the §172(a)(2)
+80% cap is measured after this deduction, so post-NOL AGI would be circular — matters only
+with both an NOL and a 65+ filer); (2) the deduction is NOT added back for AMT (it is a
+§63(f) deduction outside the §56(b)(1)(E) standard-deduction add-back; confirm against the
+final 2025 Form 6251 instructions); (3) the regular §63(f)(1)–(3) additional standard
+deduction for age/blindness is still not modelled, and the app does not ask about an SSN.
+
+## LIMITATION W2-SPOUSE — spouse wages on a joint return — NARROWED Oct 18 2026
+
+**NARROWED (OCT-4 once-over L-2):** Step 2 has a separate "W-2 — Spouse's wages (all
+employers)" field for MFJ (`w2Spouse`). The engine folds it into household income and keeps it
+apart for the §3102(f) per-employer Additional Medicare withholding credit (one source) and
+the §31(b)/§6413(c) excess-Social-Security credit (per taxpayer; the spouse's single-source
+wages never produce an excess). When the spouse field is used, the owner's unattributed
+Schedule SE / excess-SS slice defaults to the owner's whole `w2` (officer salary + own
+other-employer W-2) instead of the officer salary alone (`resolveW2OwnForSE`). Remaining
+boundary: a spouse with two or more employers whose own wages exceed the wage base has an
+excess-SS credit of their own that is not computed — the field caption says to add it to Box 2
+withholding. Records saved before this change (spouse field blank) keep the prior conservative
+reading byte-for-byte.
 
 ## LIMITATION NOL-80 — 80% cap applied to all NOL carryforwards
 

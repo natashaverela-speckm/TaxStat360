@@ -12,6 +12,71 @@ record of work that predates this changelog.
 
 ---
 
+## Oct 4 once-over — full fresh calculation audit follow-up (engine M-1 / L-1 / L-2 / L-5 / N-12a, wiring M-2 / L-3 / L-4, copy SSTB caption) — October 18, 2026
+
+Black-box audit of production on October 4, 2026 after the ninth-pass fixes were deployed: all
+Sept 22 items re-tested and holding; 36 fresh scenarios against an independent reference
+calculator, 34 to the dollar. N-5 (plan type / HSA coverage) was reported open in the audit but
+was already shipped — its controls appear only once an amount is entered. SPEC tests written
+from the live repros before the code (`taxCalc-oct4-once-over.test.js`, +19; `MoneyInput.test.jsx`
++3; `w2OwnForSE.test.js` +1; `eighth-pass-step1.test.jsx` updated). Suite: 119 files / 1,779
+tests, all green; lint 0 errors (28 pre-existing warnings, unchanged).
+
+### Fixed — engine (`src/lib/taxCalc.js`, `src/lib/constants.js`)
+- **M-1 (MED) — §199A W-2 wage field is floored at the officer salary.** The Step-1
+  "W-2 Wages (K-1 §199A statement)" figure REPLACED the officer salary the card already counted
+  (`box17V_wages || officerW2 || officerSalary`), so an owner with a $100k officer W-2 who typed
+  $50k of staff payroll got a $25,000 wage limit instead of $75,000 (live: S-Corp K-1 $300k /
+  officer $100k + Sch C $200k — §199A $50,000 → $25,000, $169,459 → $178,209). New single
+  source `getEntityQbiW2Wages()`: the field is the entity's TOTAL payroll (Reg. §1.199A-2(b);
+  a K-1 Code V statement already includes officer wages, so the fix is a floor, not a sum);
+  the EXT-7 SEHI grossup now writes `qbiW2WagesResolved` instead of overwriting the field. Step 1
+  warns inline when a typed total is below the officer salary and says what to enter instead.
+- **L-1 (LOW) — rental QBI per property.** A §469-allowed loss from a rental NOT elected into
+  §199A wiped out the QBI of one that was (live: A −$40k not elected + B +$5k elected, W-2
+  $120k → §199A $0; $1,000 due). The QBI gate scaled the pooled, netted, floored figure by a
+  fraction; it now builds the contribution from each elected card's own allowed amount
+  (income in full; a loss property's Form 8582 Part VIII share of the pool's allowed loss;
+  nonpassive REP property in full). An elected property's allowed loss is kept as negative
+  QBI (Reg. §1.199A-1(d)(2)(iii)). Unelected-only returns are unchanged.
+- **L-2 (LOW) — spouse W-2 field (MFJ).** `w2Spouse` is folded into household income and kept
+  apart for the per-employer §3102(f) credit and the per-taxpayer §6413(c) excess-SS credit;
+  `resolveW2OwnForSE()` defaults the owner's slice to the whole `w2` once a spouse figure exists.
+  Closes the MFJ half of N-1 and N-10 in one input. YTD mode scales it (flow).
+- **L-5 (LOW) — §469(i)(5) MFS lived-apart allowance.** `calc469iAllowance()` takes
+  `mfsLivedApartAllYear`; $12,500 phased out from $50,000 when set, $0 otherwise.
+- **N-12a — OBBBA §70103 senior deduction (IRC §63(f)(5)).** `calcSeniorDeduction()`: $6,000
+  per 65+ individual (2025–2028), 6% phase-out above $75k/$150k, MFS excluded, allowed to
+  itemizers and non-itemizers, reduces taxable income before the §199A cap. Own waterfall row.
+  See KNOWN_LIMITATIONS.md SENIOR-70103 for the three remaining boundaries.
+- Result additions: `qbiSstbApplicablePct`, `qbiHasSstb`, `w2SpouseApplied`, `seniorDeduction`,
+  `seniorQualifiedCount`. Exports: `getEntityQbiW2Wages`, `calcSeniorDeduction`.
+
+### Fixed — wiring / UI (`TaxReturn.jsx`, `CalculateTaxInner.jsx`, `MoneyInput`, `rentalPortfolio.js`)
+- **M-2 (MED) — a cleared prior-year-tax field no longer reads as "$0 = no penalty".**
+  `Step2MoneyInput` forces blank → "0" on blur for every field; the two safe-harbor inputs now
+  pass `coerceEmptyBlurToZero={false}`, so clearing returns the field to "not entered" (warning)
+  while a typed 0 still triggers §6654(e)(2). A confirmation line appears under a typed $0.
+- **L-3 (LOW) — YTD waterfall label.** The officer-salary row is annualized with the engine's
+  factor (and says so), so the annualized remainder no longer appears as a phantom
+  "Other employer (Step 2)" W-2. New "Spouse (Step 2)" row for L-2.
+- **L-4 (LOW) — orphan carryforward.** `releaseCardPriorPAL()` re-derives the mirrored
+  `priorPassiveLossCarryforward` from the REMAINING rental cards instead of subtracting the
+  removed card's possibly-stale figure; a removed passive K-1 card no longer touches the pool.
+- **SSTB caption.** The §199A row and the "missing two numbers" warning now say, for an SSTB in
+  the phase-in range, that the §199A(d)(3) applicable percentage is the dominant reduction and
+  wages/UBIA can only lift the remaining share — not "recover" the deduction.
+- New Step 2 controls: spouse W-2 (MFJ), MFS lived-apart (with a rental card), age-65 boxes
+  (2025–2028, not MFS). Manifest: `w2Spouse` (float, YTD-scaled), `mfsLivedApartAllYear`,
+  `age65Self`, `age65Spouse` (bools). Dashboard / compare-modal / AI simulator selectors carry
+  `w2Spouse` so every surface agrees with Step 2.
+
+### Copy
+- FAQ (Landing + JSON-LD) and Aria rule 9 updated: the senior deduction IS applied when the
+  age-65 box is ticked; HSA/SEP ceilings now reflect the N-5 selectors.
+
+---
+
 ## Ninth pass — pre-launch final review (engine N-1 / N-2 / N-5 / N-7 / N-11, wiring N-3 / N-4 / N-9, copy N-6 / N-8 / N-10 / N-12, legal L-7 / L-8, Resources articles) — September 22, 2026
 
 Black-box review of production after the eighth-pass fixes were deployed: all ten September 18
