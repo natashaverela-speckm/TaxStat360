@@ -45,9 +45,17 @@ export function officerW2Total(entities = []) {
  * @param {number} args.officerW2     the owner's own officer salary from Step 1 (see officerW2Total)
  * @returns {number}
  */
-export function resolveW2OwnForSE({ status, entered, officerW2 = 0 } = {}) {
+// OCT-4 ONCE-OVER L-2 (Oct 2026): Step 2 now has a separate "Spouse's W-2 wages" field. When
+// the household has used it (spouseW2 > 0), the other-employer W-2 field is by construction
+// the OWNER's own wages, so the unattributed default becomes officer salary + other-employer
+// W-2 (= the owner's whole `w2`), which lets the §1402(b) wage-base coordination and the
+// §6413(c) excess-SS credit treat the owner's two employers as one person. When the spouse
+// field is blank the legacy default (officer salary only) is unchanged — every pre-existing
+// record keeps its conservative reading.
+export function resolveW2OwnForSE({ status, entered, officerW2 = 0, otherW2 = 0, spouseW2 = 0 } = {}) {
   if (String(status || '').toLowerCase() !== 'mfj') return 0
   const typed = nf(entered)
   if (typed > 0) return typed
+  if (nf(spouseW2) > 0) return Math.max(0, nf(officerW2)) + Math.max(0, nf(otherW2))
   return Math.max(0, nf(officerW2))
 }

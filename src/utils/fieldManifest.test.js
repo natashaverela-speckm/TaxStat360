@@ -143,7 +143,7 @@ describe('manifest — engine YTD lists (single-sourced, membership pinned)', ()
     // combined selfEmpHealthIns field they split (both are premium AMOUNTS, ratable
     // over the YTD-projection window like every other flow in this list).
     expect(YTD_SCALE_ENGINE_FIELDS).toEqual([
-      'w2', 'w2OwnForSE', 'k1Total', 'rentalNet',
+      'w2', 'w2OwnForSE', 'w2Spouse', 'k1Total', 'rentalNet',   // OCT-4 L-2: w2Spouse is a flow
       'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
       'f4797Inc', 'taxableSS', 'iraIncome',
       'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',

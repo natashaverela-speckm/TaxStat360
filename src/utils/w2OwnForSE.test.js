@@ -63,3 +63,14 @@ describe('F-3 end-to-end — audit repro through the engine', () => {
     expect(run(0).seTax).toBe(14130)
   })
 })
+
+describe('OCT-4 ONCE-OVER L-2 (Oct 2026) — the spouse field changes the unattributed default', () => {
+  it('SPEC: spouse wages entered ⇒ the owner\'s default attribution is officer salary + own other-employer W-2', () => {
+    expect(resolveW2OwnForSE({ status: 'mfj', entered: '', officerW2: 100000, otherW2: 500000, spouseW2: 300000 })).toBe(600000)
+    // No spouse figure ⇒ the legacy conservative default (officer salary only) is unchanged.
+    expect(resolveW2OwnForSE({ status: 'mfj', entered: '', officerW2: 100000, otherW2: 500000, spouseW2: 0 })).toBe(100000)
+    // A typed attribution still wins; non-MFJ is still 0.
+    expect(resolveW2OwnForSE({ status: 'mfj', entered: 250000, officerW2: 100000, otherW2: 500000, spouseW2: 300000 })).toBe(250000)
+    expect(resolveW2OwnForSE({ status: 'single', entered: '', officerW2: 100000, otherW2: 500000, spouseW2: 300000 })).toBe(0)
+  })
+})

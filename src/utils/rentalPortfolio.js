@@ -71,10 +71,23 @@ export function deriveRentalPortfolioInputs(entities, savedPriorPAL = 0) {
  * @param {object} ctx     personal context (readPersonalContext())
  * @param {object} entity  the entity being removed
  */
-export function releaseCardPriorPAL(ctx, entity) {
-  const cardPAL = Math.max(0, nf(entity?.priorPAL) || 0)
-  if (!ctx || cardPAL === 0) return ctx
+export function releaseCardPriorPAL(ctx, entity, remainingEntities) {
+  if (!ctx) return ctx
   const current = Math.max(0, nf(ctx.priorPassiveLossCarryforward) || 0)
   if (current === 0) return ctx
-  return { ...ctx, priorPassiveLossCarryforward: Math.max(0, current - cardPAL) }
+  // OCT-4 ONCE-OVER L-4 (Oct 2026): subtracting the removed card's CURRENT priorPAL was not
+  // enough — the mirrored context is written only when Step 2 renders, so a card whose
+  // carryforward had been edited down (e.g. $10,000 → blank) and then removed still left the
+  // old $10,000 in the context, and with no rental card left to "carry the field" the
+  // migration fallback resurrected it as an orphan (live repro Oct 4 2026). The context is a
+  // MIRROR of the rental cards, so on removal of a rental card re-derive it from the cards
+  // that remain instead of doing arithmetic against a possibly-stale copy. A removed card
+  // that is not a rental (a passive K-1 card has its own priorPAL input, which the rental pool
+  // never included) leaves the pooled figure alone — the old subtraction wrongly reduced it.
+  if (!isRealEstateEntity(entity?.type)) return ctx
+  const remaining = (Array.isArray(remainingEntities) ? remainingEntities : [])
+    .filter(e => e && isRealEstateEntity(e.type))
+  const remainingPAL = remaining.reduce((s, e) => s + Math.max(0, nf(e.priorPAL) || 0), 0)
+  if (remainingPAL === current) return ctx
+  return { ...ctx, priorPassiveLossCarryforward: remainingPAL }
 }

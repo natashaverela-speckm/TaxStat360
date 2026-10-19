@@ -149,6 +149,13 @@ export const F1040_FIELD_MANIFEST = [
   { key: 'retirementPlanType', kind: 'string', def: 'solo401k' },   // 'solo401k' | 'sep'
   { key: 'hsaCoverage',        kind: 'string', def: 'family' },     // 'family' | 'self'
   { key: 'hsaCatchUp55',       kind: 'boolDefaultTrue', def: true },
+  // OCT-4 ONCE-OVER (Oct 2026): L-2 spouse W-2 (MFJ only; a flow, scaled in YTD mode — see
+  // YTD_SCALE_* below), L-5 §469(i)(5) MFS lived-apart attestation, N-12a OBBBA §70103
+  // age-65 attestations per spouse (§63(f)(5), 2025–2028). Attestations are never scaled.
+  { key: 'w2Spouse',           kind: 'float',  def: 0 },
+  { key: 'mfsLivedApartAllYear', kind: 'bool', def: false },
+  { key: 'age65Self',          kind: 'bool',   def: false },
+  { key: 'age65Spouse',        kind: 'bool',   def: false },
   { key: 'priorYearLosses',    kind: 'float',  def: 0 },
   { key: 'mortgageInt',        kind: 'float',  def: 0 },
   { key: 'charitableContr',    kind: 'float',  def: 0 },
@@ -242,7 +249,7 @@ export function normalizeF1040Fields(rec = {}) {
 // field names above — the session→engine vocabulary translation happens in
 // TaxReturn/EntityCompareModal. fieldManifest.test.js pins membership.
 export const YTD_SCALE_ENGINE_FIELDS = [
-  'w2', 'w2OwnForSE', 'k1Total', 'rentalNet',   // R-2: w2OwnForSE is a slice of w2 — scales with it
+  'w2', 'w2OwnForSE', 'w2Spouse', 'k1Total', 'rentalNet',   // R-2: w2OwnForSE is a slice of w2 — scales with it; OCT-4 L-2: w2Spouse is a flow
   'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
   'f4797Inc', 'taxableSS', 'iraIncome',
   'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
