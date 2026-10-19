@@ -127,17 +127,40 @@ and $0 otherwise (§469(i)(5)(A)/(B)). Constants `PAL_SPECIAL_ALLOWANCE_BASE_MFS
 History: ratified Jul 8 2026 as a conservative $0 default; the article prose
 (`articles.js`, "MFS filers who lived apart … $12,500") no longer contradicts the engine.
 
-## LIMITATION SENIOR-70103 — OBBBA §70103 senior deduction — CLOSED Oct 18 2026 (with two boundaries)
+## LIMITATION SENIOR-70103 — OBBBA §70103 senior deduction — CLOSED Oct 18 2026; boundaries narrowed Oct 19
 
 **CLOSED (OCT-4 once-over N-12a):** two Step 2 attestations ("I was 65 or older on Dec 31",
 and for MFJ "My spouse was …") drive `calcSeniorDeduction()`: $6,000 per qualified individual
 for 2025–2028, reduced by 6% of MAGI above $75,000 ($150,000 joint), $0 for MFS (joint return
-required, §63(f)(5)(B)(ii)). Boundaries that remain: (1) MAGI is pre-NOL AGI (the §172(a)(2)
-80% cap is measured after this deduction, so post-NOL AGI would be circular — matters only
-with both an NOL and a 65+ filer); (2) the deduction is NOT added back for AMT (it is a
-§63(f) deduction outside the §56(b)(1)(E) standard-deduction add-back; confirm against the
-final 2025 Form 6251 instructions); (3) the regular §63(f)(1)–(3) additional standard
-deduction for age/blindness is still not modelled, and the app does not ask about an SSN.
+required, §63(f)(5)(B)(ii)). **OCT-19 engine review:** (a) the deduction IS now added back to
+AMTI — the 2025 Form 6251 instructions (line 1a; §56(b)(5)(D)) treat it as a personal
+exemption; (b) the regular §63(f)(1)/(3) additional standard deduction for age now rides on the
+same boxes (`addlStdAged` in TAX_TABLES; MFS included). Boundaries that remain: MAGI is pre-NOL
+AGI (circular otherwise; matters only with both an NOL and a 65+ filer); blindness and the SSN
+requirement are not asked.
+
+## LIMITATION W2-MULTI-EMPLOYER — other-employer W-2 is one source for the withholding credits (Oct 19 2026)
+
+The §3102(f) Additional Medicare withholding credit is per paying employer and the §6413(c)
+excess-Social-Security credit needs two or more employers; the engine models each officer
+salary as its own employer and the other-employer W-2 (and, for MFJ, the spouse's W-2) as ONE
+employer each. Two non-officer jobs of $150k entered as $300k are credited $900 of Box 6
+withholding no employer withheld; two jobs of $120k miss a $3,441 excess-SS credit. Collecting
+per-W-2 wages (or an employer count) would close this; the Box 2 caption discloses it.
+
+## LIMITATION SEHI-PER-ENTITY — S-Corp §162(l) leg pooled across S-Corps (Oct 19 2026)
+
+`_scorpOfficerW2ForSEHI` sums officer W-2 across all S-Corps, so a premium paid through a
+low-salary S-Corp can be capped by another S-Corp's salary; §162(l)(2)(A) caps it at earned
+income from the business that sponsors the plan. Needs a per-entity premium field.
+
+## LIMITATION CTC-ODC — every `dependents` entry is a §24(c) qualifying child (Oct 19 2026)
+
+The field is labelled "dependents qualifying for the Child Tax Credit (under 17)", so a
+college-age child or parent entered there receives the $2,200 CTC/ACTC instead of the $500
+§24(h)(4) other-dependent credit. A second input would close it. Related: ACTC earned income
+(`earnedIncomeForACTC`) omits the §1372 SEHI wage grossup and does not net an SE loss against
+wages (Schedule 8812 Earned Income Worksheet) — small, low-income edge.
 
 ## LIMITATION W2-SPOUSE — spouse wages on a joint return — NARROWED Oct 18 2026
 

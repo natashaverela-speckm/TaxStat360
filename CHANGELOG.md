@@ -12,6 +12,59 @@ record of work that predates this changelog.
 
 ---
 
+## Oct 19 engine review — source-level accuracy review of `src/lib/taxCalc.js` (engine H-1 / H-2 / M-3 / M-4 / M-5 / M-6 / M-7, low L-a / L-b / L-c) — October 19, 2026
+
+First review with source access. Three reviewers read the engine by area (tables & credits;
+SE / §199A / §469 / basis; capital gains / AMT / deductions / C-Corp / YTD); every candidate was
+reproduced by executing `calcTaxReturn` and checked against the Code and the forms before being
+accepted. All 2024–2026 tables verified; the defects were in less-travelled logic. SPEC tests from
+the repros in `taxCalc-oct19-engine-review.test.js` (+20). Suite: 120 files / 1,799 tests, all
+green; eslint (src) 0 errors, 28 pre-existing warnings; production build clean.
+
+### Fixed — engine (`src/lib/taxCalc.js`, `src/utils/fieldManifest.js`)
+- **H-1 — REP hours test gates every nonpassive rental.** `repAggregationGatedOut` reached only
+  the §1.469-9(g) election; a property flagged `materiallyParticipates` stayed nonpassive when the
+  supplied hours failed §469(c)(7)(B). New `repQualified` is read by the aggregation branch, the
+  per-property branch and the rental-QBI nonpassive test (single, W-2 $300k, rental −$80k, 400 of
+  2,000 hours: $80,000 deducted → suspended; $26,430 of tax).
+- **H-2 — capital-loss ordering against the 28% / 25% slices.** A net ST loss and a §1212(b) LT
+  carryover reduce collectibles gain first, then unrecaptured §1250 gain (§1(h)(4)(B)(ii)–(iii),
+  §1(h)(6)(A)(ii); Schedule D worksheets), then adjusted net capital gain. The clamps carved the
+  slices out of the surviving LT gain instead (W-2 $300k, LTCG $100k incl. $40k §1250, STCL −$50k:
+  $79,634 → $75,634). The same loss-adjusted slices now feed calcAMT.
+- **M-3 — §162(l) / §402(h) caps no longer fall back to `box17V_wages`.** With no officer W-2 the
+  shareholder has no Medicare wages, so SEHI and the S-Corp SEP are $0 (K-1-direct, Box 17V
+  $300k, no officer salary, SEHI $30k + SEP $70k: $17,817 understated). Same read feeds the
+  per-entity QBI haircut.
+- **M-4 — §6654(f): required annual payment net of the refundable ACTC** (Form 2210 line 3) — the
+  figure the §6654(e)(1) test already used (HOH, Sch C $60k, 2 children: $7,630 → $6,083).
+- **M-5 — §707(c) guaranteed payments are §461(l) trade-or-business income** (Form 461 line 4;
+  only wages are excluded, §461(l)(6)) — partnership −$300k with $150k GP no longer produces a
+  $44,000 phantom EBL.
+- **M-6 — YTD mode scales `unrecap1250`, `collectiblesGain`, `bizCapGain1231`** with their parent
+  gains (a half-annualized §1250 slice was taxed at 15% instead of 25%).
+- **M-7a — §63(f)(1)/(3) aged additional standard deduction.** `TAX_TABLES[y].addlStdAged`
+  ($1,550/$1,950 · $1,600/$2,000 · $1,650/$2,050); `getStdDed(year, status, aged65Count)`; driven
+  by the age-65 boxes added Oct 18 (now shown for every year and status — MFS included).
+- **M-7b — OBBBA §63(f)(5) senior deduction added back to AMTI** (2025 Form 6251 instructions,
+  line 1a; §56(b)(5)(D)) — `calcAMT({ seniorDeductionAddback })`.
+- **L-a — REP nonpassive rental income stays in NII unless the property is attested as a §162
+  trade or business** (`qbiEligible`; §1411(c)(2)(A), Reg. §1.1411-4(g)(7)).
+- **L-b — §68 re-election:** a provisional 2/37 reduction at the itemize decision; itemized that
+  falls below the standard deduction after §68 takes the standard deduction.
+- **L-c — separately-stated §179 (`box11_12`) is no longer annualized in YTD mode** (discrete
+  election, not a flow).
+- New tables/exports: `addlStdAged`; `getStdDed` third argument. Result additions: none.
+
+### Documented, not changed (see KNOWN_LIMITATIONS.md)
+- Other-employer W-2 is one source for the §3102(f) / §6413(c) credits (captioned); the S-Corp
+  SEHI leg is pooled across S-Corps rather than capped per sponsoring entity; §469(i) MAGI is
+  pre-NOL (conservative); an allowed passive rental loss never reduces NII (conservative);
+  `dependents` are all CTC qualifying children (the field says so; no $500 ODC); ACTC earned
+  income omits the §1372 grossup and does not net an SE loss.
+
+---
+
 ## Oct 4 once-over — full fresh calculation audit follow-up (engine M-1 / L-1 / L-2 / L-5 / N-12a, wiring M-2 / L-3 / L-4, copy SSTB caption) — October 18, 2026
 
 Black-box audit of production on October 4, 2026 after the ninth-pass fixes were deployed: all
