@@ -130,11 +130,12 @@ export function calcDashboard(biz, f1040) {
     isREP: false, unrecap1250: 0, collectiblesGain: 0,
     w2Withheld: 0, estPaid: estPay, ytdFactor: 1,
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
+    w2Spouse: nf(f1040.w2Spouse),   // OCT-4 L-2
     // FOURTH READ R-2, second pass (14 Sep 2026): the MFJ Schedule SE attribution must reach
     // every engine call, or this card disagrees with Step 2 by up to 12.4% of the wage base.
     // FIFTH READ F-3 (15 Sep 2026): same default as Step 2 — blank ⇒ the owner's own
     // S-Corp / C-Corp officer salary is attributed to them (see utils/w2OwnForSE.js).
-    w2OwnForSE: resolveW2OwnForSE({ status: fs, entered: f1040.w2OwnForSE, officerW2: (isSC || isCCorp) ? sal : 0 }),
+    w2OwnForSE: resolveW2OwnForSE({ status: fs, entered: f1040.w2OwnForSE, officerW2: (isSC || isCCorp) ? sal : 0, otherW2: f1040.w2Income, spouseW2: f1040.w2Spouse }),   // OCT-4 L-2
     asOfDate: localCalendarDate(),   // follow-up (15 Sep 2026): remaining-installment timing
   }
 

@@ -97,7 +97,7 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     // salary, so that slice is removed here and re-added per scenario (engine clamps ≥ 0).
     w2OwnForSE: nf(p.w2OwnForSE) > 0
       ? Math.max(0, nf(p.w2OwnForSE) - officerW2ThisEntity)
-      : resolveW2OwnForSE({ status: p.filingStatus || 'single', entered: 0, officerW2: officerW2Others }),
+      : resolveW2OwnForSE({ status: p.filingStatus || 'single', entered: 0, officerW2: officerW2Others, otherW2: nf(p.w2Income), spouseW2: nf(p.w2Spouse) }),   // OCT-4 L-2
     stGain: nf(p.stGain),
     ltGain: nf(p.ltGain ?? p.capitalGains),
     intInc: nf(p.interest),
@@ -125,6 +125,8 @@ export function toEngineContext(pc, entities = [], entityIdx = 0) {
     retirementPlanType: p.retirementPlanType === 'sep' ? 'sep' : 'solo401k',        // NINTH PASS N-5
     hsaCoverage: p.hsaCoverage === 'self' ? 'self' : 'family',
     hsaCatchUp55: p.hsaCatchUp55 !== false,
+    w2Spouse: nf(p.w2Spouse), mfsLivedApartAllYear: p.mfsLivedApartAllYear === true,   // OCT-4 L-2 / L-5
+    age65Self: p.age65Self === true, age65Spouse: p.age65Spouse === true,                   // OCT-4 N-12a
     priorPassiveLossCarryforward: rp.priorPAL,   // M-4: card sum, personal value only as migration fallback
     priorSuspendedLoss: nf(p.priorSuspendedLoss),
     assumeZeroBasisOnLoss: true,

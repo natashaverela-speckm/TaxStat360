@@ -48,16 +48,24 @@ describe('EIGHTH PASS F-3 — a removed rental card takes its prior-year PAL wit
     const none = deriveRentalPortfolioInputs([], 10000)
     expect(none.orphanedPriorPAL).toBe(10000)
   })
-  it('SPEC (releaseCardPriorPAL): removing the card subtracts its amount from the mirrored context', () => {
+  it('SPEC (releaseCardPriorPAL): removing a rental card re-derives the mirrored context from the cards that remain', () => {
     const ctx = { priorPassiveLossCarryforward: 10000, w2Income: 120000 }
-    const after = releaseCardPriorPAL(ctx, { type: RE, priorPAL: '10,000' })
+    const after = releaseCardPriorPAL(ctx, { type: RE, priorPAL: '10,000' }, [])
     expect(after.priorPassiveLossCarryforward).toBe(0)
     expect(after.w2Income).toBe(120000)
-    // Two cards, one removed: only that card's share comes out.
-    expect(releaseCardPriorPAL({ priorPassiveLossCarryforward: 25000 }, { type: RE, priorPAL: 10000 }).priorPassiveLossCarryforward).toBe(15000)
-    // Nothing to release → the same object back (no spurious write).
-    expect(releaseCardPriorPAL(ctx, { type: RE, priorPAL: '' })).toBe(ctx)
-    expect(releaseCardPriorPAL({ priorPassiveLossCarryforward: 0 }, { type: RE, priorPAL: 5000 })).toMatchObject({ priorPassiveLossCarryforward: 0 })
+    // Two cards, one removed: the remaining card's own amount is what stays.
+    expect(releaseCardPriorPAL({ priorPassiveLossCarryforward: 25000 }, { type: RE, priorPAL: 10000 }, [{ type: RE, priorPAL: 15000 }]).priorPassiveLossCarryforward).toBe(15000)
+    // OCT-4 ONCE-OVER L-4 (Oct 2026): the context is a mirror written only when Step 2 renders,
+    // so it can be STALE — the removed card's field had been edited down to blank after the
+    // mirror was taken (live repro 4 Oct: $10,000 survived as an orphan). Re-deriving from the
+    // remaining cards clears it where the old subtraction (removed.priorPAL = '') left it.
+    expect(releaseCardPriorPAL(ctx, { type: RE, priorPAL: '' }, []).priorPassiveLossCarryforward).toBe(0)
+    // Already consistent → the same object back (no spurious write).
+    expect(releaseCardPriorPAL({ priorPassiveLossCarryforward: 15000 }, { type: RE, priorPAL: 10000 }, [{ type: RE, priorPAL: 15000 }])).toEqual({ priorPassiveLossCarryforward: 15000 })
+    expect(releaseCardPriorPAL({ priorPassiveLossCarryforward: 0 }, { type: RE, priorPAL: 5000 }, [])).toMatchObject({ priorPassiveLossCarryforward: 0 })
+    // A removed passive K-1 card never touches the rental pool (its priorPAL was never in it).
+    const k1ctx = { priorPassiveLossCarryforward: 10000 }
+    expect(releaseCardPriorPAL(k1ctx, { type: 'S Corporation', priorPAL: 10000 }, [{ type: RE, priorPAL: 10000 }])).toBe(k1ctx)
   })
   it('SPEC (engine): the live repro — a fresh rental with +$5,000 and no carryforward is allowed in full', () => {
     const cards = [{ type: RE, own: '100', pnl: { netProfit: 5000 }, priorPAL: '', isActiveParticipant: true }]
@@ -73,7 +81,7 @@ describe('EIGHTH PASS F-3 — a removed rental card takes its prior-year PAL wit
     const start = src.indexOf('const removeEntity = useCallback')
     const fn = src.slice(start, src.indexOf('const handleIntegrationDisconnect', start))
     expect(fn).toMatch(/const removed = entities\[idx\]/)
-    expect(fn).toMatch(/releaseCardPriorPAL\(ctxBefore, removed\)/)
+    expect(fn).toMatch(/releaseCardPriorPAL\(ctxBefore, removed, next\)/)   // OCT-4 L-4: re-derived from the remaining cards
     expect(fn).toMatch(/if \(ctxAfter !== ctxBefore\) writePersonalContext\(ctxAfter\)/)
     expect(src).toMatch(/isREP: false, isActiveParticipant: false,\s*\n\s*priorPAL: '',/)
   })

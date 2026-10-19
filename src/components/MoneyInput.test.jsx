@@ -209,3 +209,46 @@ describe('H4 — typing cents behaves', () => {
     expect(input.value).toBe('250,000')
   })
 })
+
+// OCT-4 ONCE-OVER M-2 (Oct 2026): the prior-year safe-harbor inputs must be able to return to
+// BLANK — a typed "0" and a cleared field mean different things under §6654(e)(2). Step 2 keeps
+// coerceEmptyBlurToZero on for every other money field; these two pass false.
+describe('OCT-4 M-2 — coerceEmptyBlurToZero', () => {
+  function CoerceHarness({ coerce }) {
+    const [v, setV] = useState('18,750')
+    return (
+      <>
+        <MoneyInput id="mi-coerce" value={v} onChange={setV} nonNegative coerceEmptyBlurToZero={coerce} ariaLabel="coerce" />
+        <output data-testid="raw-coerce">{v}</output>
+      </>
+    )
+  }
+  it('SPEC: with coercion ON (default Step 2 behaviour) a cleared field blurs to "0"', async () => {
+    const { getByLabelText, getByTestId } = render(<CoerceHarness coerce={true} />)
+    const input = getByLabelText('coerce')
+    type(input, '')
+    fireEvent.blur(input)
+    await settle()
+    expect(getByTestId('raw-coerce').textContent).toBe('0')
+  })
+  it('SPEC: with coercion OFF (prior-year tax / AGI) a cleared field stays blank, and a typed 0 stays "0"', async () => {
+    const { getByLabelText, getByTestId } = render(<CoerceHarness coerce={false} />)
+    const input = getByLabelText('coerce')
+    type(input, '')
+    fireEvent.blur(input)
+    await settle()
+    expect(getByTestId('raw-coerce').textContent).toBe('')
+    type(input, '0')
+    fireEvent.blur(input)
+    await settle()
+    expect(getByTestId('raw-coerce').textContent).toBe('0')
+  })
+  it('source: Step 2 passes coerceEmptyBlurToZero={false} on exactly the two prior-year inputs', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const src = readFileSync(join(__dirname, 'TaxReturn.jsx'), 'utf8')
+    expect(src).toMatch(/id="tr-prior-tax"[^\n]*coerceEmptyBlurToZero=\{false\}/)
+    expect(src).toMatch(/id="tr-prior-agi"[^\n]*coerceEmptyBlurToZero=\{false\}/)
+    expect((src.match(/coerceEmptyBlurToZero=\{false\}/g) || []).length).toBe(2)
+  })
+})

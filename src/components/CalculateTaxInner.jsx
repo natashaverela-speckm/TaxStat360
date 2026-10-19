@@ -44,7 +44,7 @@ import { ownPct, isSCorpEntity, isCCorpEntity, isPassthroughEntity, isRealEstate
 import { releaseCardPriorPAL } from '../utils/rentalPortfolio.js'   // EIGHTH PASS F-3
 // M3 (audit F-04): the flow-through k1Total rule now lives in the engine — the
 // three verbatim reduce() copies this file carried are replaced by one call each.
-import { sumK1FlowThrough, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, calcReasonableCompCore } from '../lib/taxCalc.js'
+import { sumK1FlowThrough, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE, calcReasonableCompCore, getEntityQbiW2Wages } from '../lib/taxCalc.js'
 import InfoTip from './InfoTip.jsx'
 import MoneyInput from './MoneyInput.jsx'
 // AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
@@ -1242,6 +1242,11 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
   // the one the engine applies.
   const _qbiThreshYr  = QBI_THRESHOLDS[taxYear]     || QBI_THRESHOLDS[DEFAULT_TAX_YEAR]
   const _qbiPhaseInYr = QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[DEFAULT_TAX_YEAR]
+  // OCT-4 ONCE-OVER M-1 (Oct 2026): officer W-2 this entity pays the owner, and whether the
+  // typed §199A W-2 total is below it (the engine floors at the officer salary — see
+  // getEntityQbiW2Wages in src/lib/taxCalc.js). Display-only; the rule lives in the engine.
+  const qbiOfficerWage = Math.max(0, nf(entity.officerW2) || nf(pnl.officerSalary) || 0)
+  const qbiW2WagesBelowOfficer = nf(entity.box17V_wages) > 0 && nf(entity.box17V_wages) < qbiOfficerWage
 
   // ── Findings 1 + 3 FIX — single source of truth for S-Corp basis math ────────
   // Mirrors taxCalc.js exactly so every badge and panel on this card agrees with the
@@ -1688,7 +1693,7 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                     </div>
                   )}
                   {[
-                    { label: issuesK1Entity(entity.type) ? 'W-2 Wages (K-1 §199A statement)' : isRE ? 'W-2 Wages paid by the rental activity (usually $0)' : 'W-2 Wages paid by this business (Form W-3, Box 1)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: `Your share of W-2 wages paid by the entity. Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ${fmt(_qbiThreshYr.single)} (single/HOH) or ${fmt(_qbiThreshYr.mfj)} (MFJ) for ${taxYear}. Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).` },
+                    { label: issuesK1Entity(entity.type) ? 'W-2 Wages (K-1 §199A statement)' : isRE ? 'W-2 Wages paid by the rental activity (usually $0)' : 'W-2 Wages paid by this business (Form W-3, Box 1)',  /* UX-M4 FIX: shortened; box ref in tooltip */ key: 'box17V_wages', tip: `Your share of the entity's TOTAL W-2 wages for the year — every employee's Box 1 wages INCLUDING your own officer salary (Reg. §1.199A-2(b); Notice 2018-64). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).${(nf(entity.officerW2) || nf(entity.pnl?.officerSalary)) > 0 ? `\n\nLeave it blank and TaxStat360 uses your officer salary of ${fmt(nf(entity.officerW2) || nf(entity.pnl?.officerSalary))} as the wage figure. If the business also pays other employees, enter officer salary PLUS staff payroll here — a figure below your own officer salary is incomplete, and TaxStat360 will not use less than the officer salary.` : ''}\n\nThis field only matters if your taxable income exceeds ${fmt(_qbiThreshYr.single)} (single/HOH) or ${fmt(_qbiThreshYr.mfj)} (MFJ) for ${taxYear}. Below those thresholds, the W-2 wage limitation does not apply and your QBI deduction is simply 20% of QBI.\n\nAbove the threshold, the deduction is limited to the lesser of: (a) 20% of QBI, or (b) 50% of W-2 wages paid by the entity (IRC §199A(b)(2)(A)).` },
                     { label: issuesK1Entity(entity.type) ? 'UBIA of Qualified Property (K-1 §199A statement)' : isRE ? 'UBIA — unadjusted cost basis of the building (exclude land)' : 'UBIA of Qualified Property (your depreciation schedule)',  /* UX-M4 FIX: shortened */ key: 'box17V_ubia', tip: `Unadjusted Basis Immediately After Acquisition — the original cost of qualified property, not reduced by depreciation (IRC §199A(b)(6)(B)). Reported on the Section 199A statement attached to your K-1 (S-Corp: Box 17, Code V; Partnership: Box 20, Code Z).\n\nThis field only matters if your taxable income exceeds ${fmt(_qbiThreshYr.single)} (single/HOH) or ${fmt(_qbiThreshYr.mfj)} (MFJ) for ${taxYear}. Below those thresholds this limitation does not apply.\n\nAbove the threshold, you may use the alternative W-2 + UBIA limitation: 25% of W-2 wages plus 2.5% of UBIA (§199A(b)(2)(B)(ii)). This helps capital-intensive businesses with low W-2 wages.` },
                     { label: '§179 Deduction (K-1 Box 11 / Box 12)', key: 'box11_12', tip: '§179 first-year expensing allocated to you from the entity.\n\nS-Corp: K-1 Box 11 · Partnership: K-1 Box 12\n\nThis deduction reduces your Qualified Business Income (QBI) for §199A purposes (Treas. Reg. §1.199A-3(b)(1)(vi), (b)(2)(i); Form 8995 instructions). It also reduces your stock or partnership basis (IRC §1367 / §705).\n\nOnly enter this if §179 is shown separately on your K-1 and is NOT already reflected in the ordinary business income on Box 1 (S-Corp) or Box 1 (Partnership). If your accounting software already netted §179 into your net profit figure, leave this blank to avoid double-counting.' },
                     { label: 'Charitable Contributions — K-1 Box 12 (S-Corp) or Box 13 (Partnership)', key: 'box12_13', tip: 'Charitable contributions passed through on your K-1 (S-Corp: Box 12; Partnership: Box 13). Enter totals from your own K-1 only — do not combine S-Corp Box 12 and Partnership Box 13 if you hold both entity types. These flow to Schedule A (if you itemize) and reduce your stock basis under §1367(a)(2)(B) — they do NOT reduce your K-1 ordinary income or QBI.' },
@@ -1705,6 +1710,15 @@ export function EntityCard({ entity, idx, onUpdate, onAggregationElection, portf
                         placeholder="0"
                         style={{ fontSize: 13 }}
                       />
+                      {/* OCT-4 ONCE-OVER M-1 (Oct 2026): a typed W-2 total BELOW this entity's own
+                          officer salary is necessarily missing the officer comp (total payroll includes
+                          it). The engine floors the figure at the officer salary (getEntityQbiW2Wages);
+                          tell the user, and tell them what to enter instead. */}
+                      {key === 'box17V_wages' && qbiW2WagesBelowOfficer && (
+                        <div role="status" style={{ marginTop: 4, fontSize: 12, color: '#78350F', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 5, padding: '5px 8px', lineHeight: 1.5 }}>
+                          ⚠ You entered {fmt(nf(entity.box17V_wages))}, but this entity pays you {fmt(qbiOfficerWage)} of officer W-2 — total W-2 wages can&apos;t be less than that, so TaxStat360 is using {fmt(getEntityQbiW2Wages(entity))} for the §199A wage limit. If the {fmt(nf(entity.box17V_wages))} is payroll for OTHER employees, enter {fmt(nf(entity.box17V_wages) + qbiOfficerWage)} (officer salary + staff wages).
+                        </div>
+                      )}
                     </div>
                   ))}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -2669,7 +2683,8 @@ export default function CalculateTaxInner() {
     // mirrored into the personal context by Step 2; take it back out here or it outlives the
     // card and silently offsets the next rental's income (see rentalPortfolio.js).
     const ctxBefore = readPersonalContext()
-    const ctxAfter  = releaseCardPriorPAL(ctxBefore, removed)
+    // OCT-4 L-4 (Oct 2026): re-derived from the REMAINING rental cards, not subtracted.
+    const ctxAfter  = releaseCardPriorPAL(ctxBefore, removed, next)
     if (ctxAfter !== ctxBefore) writePersonalContext(ctxAfter)
     // Mirror the removal into the device-local draft as well, or the entity returns
     // after a browser restart even though session storage is correct.

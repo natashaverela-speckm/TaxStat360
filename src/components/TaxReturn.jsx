@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { calcTaxReturn, getStdDed, SALT_CAPS, getTable, getSaltPhaseDownParams } from '../lib/taxCalc.js'
+import { calcTaxReturn, getStdDed, SALT_CAPS, getTable, getSaltPhaseDownParams, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from '../lib/taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
   readTaxYear, writeTaxYear,
@@ -25,6 +25,7 @@ import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { deriveRentalPortfolioInputs } from '../utils/rentalPortfolio.js'   // SEVENTH PASS M-1/M-3/M-4
 import { ccorpLayerForReturn, mergeCcorpIntoResult } from '../utils/ccorpLayer.js'   // SEVENTH PASS H-4
 import { NAVY as N, BLUE as B, SLATE as SL, GREEN as G, RED as R, PURPLE } from '../lib/theme.js'
+import { SENIOR_DEDUCTION_AMOUNT, SENIOR_DEDUCTION_PHASEOUT_RATE, SENIOR_DEDUCTION_PHASEOUT_START_JOINT, SENIOR_DEDUCTION_PHASEOUT_START_OTHER, SENIOR_DEDUCTION_FIRST_YEAR, SENIOR_DEDUCTION_LAST_YEAR } from '../lib/constants.js'   // OCT-4 N-12a
 import { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, CURRENT_TAX_YEAR, STEP3_LABEL, federalTaxHeadlineLabel, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFJ, ADDITIONAL_MEDICARE_TAX_THRESHOLD_MFS, ADDITIONAL_MEDICARE_TAX_THRESHOLD_SINGLE, CAP_LOSS_ORDINARY_LIMIT, CAP_LOSS_ORDINARY_LIMIT_MFS, SE_SUBJECT_TYPES } from '../lib/constants.js'
 import { isPro } from './LockedFeature'
 import InfoTip from './InfoTip.jsx'
@@ -50,12 +51,19 @@ import { needsCarryforwardWizard } from '../utils/carryforwardWizard.js'
 // (`SharedMoneyInput`) that made the two easy to confuse when grepping. This is
 // Step 2's adapter specifically (nonNegative blur clamp + coerceEmptyBlurToZero),
 // consistent with the D-12 CONSOLIDATION comment above.
-function Step2MoneyInput({ style: sx, disabled, ...props }) {
+// OCT-4 ONCE-OVER M-2 (Oct 2026): `coerceEmptyBlurToZero` is now overridable. The two
+// prior-year safe-harbor inputs pass `false`, because for them a typed "0" and a cleared
+// field mean different things — §6654(e)(2) turns on an EXPLICIT $0 prior-year tax
+// (`priorYearTaxEntered`), and a blur that silently minted a '0' flipped that flag on
+// for anyone who merely tabbed through or cleared the field, showing the green
+// "no penalty" banner against a real balance due. Every other Step 2 field keeps the
+// blank-to-'0' convention.
+function Step2MoneyInput({ style: sx, disabled, coerceEmptyBlurToZero = true, ...props }) {
   return (
     <MoneyInput
       {...props}
       disabled={disabled}
-      coerceEmptyBlurToZero
+      coerceEmptyBlurToZero={coerceEmptyBlurToZero}
       style={{
         width: '100%', padding: '9px 11px',
         border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14,
@@ -277,6 +285,11 @@ export default function TaxReturn() {
   const [retirementPlanType, setRetirementPlanType] = useState(savedCtx.retirementPlanType === 'sep' ? 'sep' : 'solo401k')
   const [hsaCoverage,        setHsaCoverage]        = useState(savedCtx.hsaCoverage === 'self' ? 'self' : 'family')
   const [hsaCatchUp55,       setHsaCatchUp55]       = useState(savedCtx.hsaCatchUp55 !== false)
+  // OCT-4 ONCE-OVER (Oct 2026): L-2 spouse W-2, L-5 MFS lived-apart, N-12a age-65 per spouse.
+  const [w2Spouse,             setW2Spouse]             = useState(savedCtx.w2Spouse || '')
+  const [mfsLivedApartAllYear, setMfsLivedApartAllYear] = useState(savedCtx.mfsLivedApartAllYear === true)
+  const [age65Self,            setAge65Self]            = useState(savedCtx.age65Self === true)
+  const [age65Spouse,          setAge65Spouse]          = useState(savedCtx.age65Spouse === true)
 
   const [saveStatus,    setSaveStatus]    = useState('idle')
   const [saveError,     setSaveError]     = useState(null)
@@ -358,7 +371,7 @@ export default function TaxReturn() {
       // FIFTH READ F-3 (15 Sep 2026): blank ⇒ the owner's own Step-1 officer salary is
       // attributed (it is "your W-2 wages from this entity" by the Step-1 data model);
       // a typed amount always wins. See utils/w2OwnForSE.js.
-      w2OwnForSE: resolveW2OwnForSE({ status: filingStatus, entered: w2OwnForSE, officerW2: officerW2Total }),
+      w2OwnForSE: resolveW2OwnForSE({ status: filingStatus, entered: w2OwnForSE, officerW2: officerW2Total, otherW2: nf(w2Income), spouseW2: nf(w2Spouse) }),   // OCT-4 L-2
       // Follow-up (15 Sep 2026): spread the estimated-payment recommendation over the
       // §6654 installment dates still ahead of today (engine: installmentsRemaining).
       asOfDate: localCalendarDate(),
@@ -398,6 +411,7 @@ export default function TaxReturn() {
       priorYearTax: nf(priorYearTax), priorYearAGI: nf(priorYearAGI),
       priorYearTaxEntered: String(priorYearTax).trim() !== '',   // NINTH PASS N-7: a typed $0 is a figure, not a blank
       retirementPlanType, hsaCoverage, hsaCatchUp55,              // NINTH PASS N-5
+      w2Spouse: nf(w2Spouse), mfsLivedApartAllYear, age65Self, age65Spouse,   // OCT-4 L-2 / L-5 / N-12a
       priorPassiveLossCarryforward: priorPAL,
       priorSuspendedLoss: nf(priorSuspendedLoss),
       // C-10 FIX: opt into the conservative §1366(d) default. An S-Corp/partnership loss
@@ -417,6 +431,7 @@ export default function TaxReturn() {
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, ytdFactor,
     retirementPlanType, hsaCoverage, hsaCatchUp55,
+    w2Spouse, mfsLivedApartAllYear, age65Self, age65Spouse,
     ccorp,
   ])
 
@@ -481,6 +496,7 @@ export default function TaxReturn() {
       priorYearTax, priorYearAGI,
       priorYearTaxEntered: String(priorYearTax).trim() !== '',   // NINTH PASS N-7
       retirementPlanType, hsaCoverage, hsaCatchUp55,              // NINTH PASS N-5
+      w2Spouse: nf(w2Spouse), mfsLivedApartAllYear, age65Self, age65Spouse,   // OCT-4 L-2 / L-5 / N-12a
       priorSuspendedLoss,           // F-01
     })
   }, [
@@ -495,6 +511,7 @@ export default function TaxReturn() {
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI,
     retirementPlanType, hsaCoverage, hsaCatchUp55,
+    w2Spouse, mfsLivedApartAllYear, age65Self, age65Spouse,
     priorSuspendedLoss,
   ])
 
@@ -568,6 +585,7 @@ export default function TaxReturn() {
         priorYearTax, priorYearAGI,
         priorYearTaxEntered: String(priorYearTax).trim() !== '',   // NINTH PASS N-7
         retirementPlanType, hsaCoverage, hsaCatchUp55,              // NINTH PASS N-5
+      w2Spouse: nf(w2Spouse), mfsLivedApartAllYear, age65Self, age65Spouse,   // OCT-4 L-2 / L-5 / N-12a
         // SAVE-2 FIX: persist §1366(d) prior-year suspended loss so it round-trips
         // through saved records. Previously only written to sessionStorage (ts360_f1040)
         // and lost on reload from server. savedCtx.priorSuspendedLoss initializes the
@@ -599,6 +617,7 @@ export default function TaxReturn() {
     mortgageInt, charitableContr, medicalAmt,
     hasISO, isoBargainElement, priorYearTax, priorYearAGI, result,
     retirementPlanType, hsaCoverage, hsaCatchUp55,
+    w2Spouse, mfsLivedApartAllYear, age65Self, age65Spouse,
   ])
 
   // D-3 (A): the actual save, parameterized by the user's explicit choice.
@@ -1022,6 +1041,38 @@ export default function TaxReturn() {
                   style={{ width: '100%', padding: '9px 11px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 14, color: N, fontFamily: 'inherit', outline: 'none' }}>
                   {FS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+                {/* OCT-4 ONCE-OVER L-5 (Oct 2026): §469(i)(5) — MFS filers who lived apart from the
+                    spouse for the ENTIRE year keep half the rental-loss allowance ($12,500, phased
+                    out from $50,000). The engine assumed $0 for every MFS return. Shown only when a
+                    rental card exists, because nothing else on the return reads it. */}
+                {/* OCT-4 ONCE-OVER N-12a (Oct 2026): OBBBA §70103 senior deduction (IRC §63(f)(5)),
+                    2025–2028 — the app never asked for age, so it was never applied. Two
+                    attestations; the engine owns the rule (calcSeniorDeduction). Married filers
+                    qualify only on a joint return, so the boxes are hidden for MFS. */}
+                {taxYear >= 2025 && taxYear <= 2028 && filingStatus !== 'mfs' && (
+                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 12, color: SL, lineHeight: 1.5 }}>
+                    <label htmlFor="tr-age65-self" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                      <input type="checkbox" id="tr-age65-self" checked={age65Self} onChange={e => setAge65Self(e.target.checked)} />
+                      I was 65 or older on Dec 31, {taxYear}
+                    </label>
+                    {filingStatus === 'mfj' && (
+                      <label htmlFor="tr-age65-spouse" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                        <input type="checkbox" id="tr-age65-spouse" checked={age65Spouse} onChange={e => setAge65Spouse(e.target.checked)} />
+                        My spouse was 65 or older on Dec 31, {taxYear}
+                      </label>
+                    )}
+                    <InfoTip text={`One Big Beautiful Bill Act §70103 (IRC §63(f)(5)): for ${SENIOR_DEDUCTION_FIRST_YEAR}–${SENIOR_DEDUCTION_LAST_YEAR} each qualified individual age 65 or older at year end (with a Social Security number) gets an additional ${fmt(SENIOR_DEDUCTION_AMOUNT)} deduction, whether or not you itemize. It phases out at ${Math.round(SENIOR_DEDUCTION_PHASEOUT_RATE * 100)} cents per dollar of modified AGI above ${fmt(SENIOR_DEDUCTION_PHASEOUT_START_OTHER)} (${fmt(SENIOR_DEDUCTION_PHASEOUT_START_JOINT)} on a joint return). Married taxpayers must file jointly to claim it. This is separate from, and in addition to, the regular additional standard deduction for age 65+ under §63(f)(1), which TaxStat360 does not model.`} wide />
+                  </div>
+                )}
+                {filingStatus === 'mfs' && _rentalPortfolio.hasRentalCards && (
+                  <label htmlFor="tr-mfs-lived-apart" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8, fontSize: 12, color: SL, lineHeight: 1.5, cursor: 'pointer' }}>
+                    <input type="checkbox" id="tr-mfs-lived-apart" checked={mfsLivedApartAllYear} onChange={e => setMfsLivedApartAllYear(e.target.checked)} style={{ marginTop: 3 }} />
+                    <span>
+                      I lived apart from my spouse for the <strong>entire</strong> year
+                      <InfoTip text="Married filing separately: the §469(i) rental-loss allowance is $0 if you lived with your spouse at ANY time during the year (IRC §469(i)(5)(B)). If you lived apart for the whole year, the allowance is $12,500, phased out at 50 cents per dollar of modified AGI above $50,000 and gone at $75,000 (§469(i)(5)(A)). Leave this unchecked unless the full-year test is met." wide />
+                    </span>
+                  </label>
+                )}
               </div>
             </div>
           </div>
@@ -1228,7 +1279,7 @@ export default function TaxReturn() {
               <div style={inpWrap}>
                 <IncomeField
                   id="tr-w2-income"
-                  label={entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 — Other Employer' : 'W-2 Income'}
+                  label={(entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 — Other Employer' : 'W-2 Income') + (filingStatus === 'mfj' ? ' (your own)' : '')}
                   value={w2Income}
                   onChange={setW2Income}
                   placeholder="0"
@@ -1257,6 +1308,30 @@ export default function TaxReturn() {
                 />
               </div>
             </div>
+            {/* OCT-4 ONCE-OVER L-2 (Oct 2026): the spouse's wages get their own field on a joint
+                return. The engine folds them into household income but keeps them apart for the
+                two per-source credits — §3102(f) Additional Medicare withholding is per paying
+                employer and the §31(b)/§6413(c) excess-Social-Security credit is per taxpayer —
+                which the single combined field could not do (it had to assume the other-employer
+                W-2 was the spouse's, so an owner with a second job never got the excess-SS credit,
+                and two $300k spouse salaries typed as $600k were credited $3,600 of Box 6
+                withholding that neither employer withheld). */}
+            {filingStatus === 'mfj' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+                <div style={inpWrap}>
+                  <IncomeField
+                    id="tr-w2-spouse"
+                    label="W-2 — Spouse's wages (all employers)"
+                    value={w2Spouse}
+                    onChange={setW2Spouse}
+                    placeholder="0"
+                    onClick={e => e.stopPropagation()}
+                    tip={<InfoTip text={`Your spouse's total W-2 Box 1 wages for the year, from every employer. Keep them out of the "${entityList.some(e => /s.?corp/i.test(e?.type || '')) ? 'W-2 — Other Employer' : 'W-2 Income'}" field, which is now YOUR wages only.\n\nWhy separate: the Additional Medicare Tax withholding credit is per paying employer (IRC §3102(f)) and the excess-Social-Security credit is per person (§31(b), §6413(c)) — your spouse's wages are treated as one employer's W-2 and never combine with yours against your Social Security wage base. If your spouse had two or more employers whose wages together exceed the ${fmt(getTable(taxYear)?.ssWageBase ?? 0)} wage base, their own excess-SS credit is not modelled here — add it to the Box 2 withholding field.\n\nThe spouse's wages also do not reduce the Social Security wage-base room for your self-employment tax (Schedule SE is per spouse, §1402(b)).`} />}
+                  />
+                </div>
+                <div />
+              </div>
+            )}
             {/* FOURTH READ R-2 (14 Sep 2026): on a joint return the engine cannot tell whose
                 W-2 is whose, so by default it does NOT net any W-2 against the SE wage base
                 (Schedule SE is filed per spouse — IRC §1402(b)). That is exact for a
@@ -1928,11 +2003,17 @@ export default function TaxReturn() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-tax" style={inputLbl}>Prior Year Total Tax (Form 1040 Line 24)</label>
-                <Step2MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="0" nonNegative />
+                {/* M-2 (Oct 2026): blank stays blank — only a typed 0 means "my prior-year tax was $0". */}
+                <Step2MoneyInput id="tr-prior-tax" value={priorYearTax} onChange={setPriorYearTax} placeholder="Leave blank if unknown" nonNegative coerceEmptyBlurToZero={false} />
+                {priorYearTaxNum === 0 && String(priorYearTax).trim() !== '' && (
+                  <div style={{ marginTop: 4, fontSize: 12, color: '#166534', lineHeight: 1.5 }}>
+                    You entered <strong>$0</strong> — TaxStat360 will treat last year&apos;s federal tax as exactly zero (IRC §6654(e)(2)). If you simply don&apos;t know the figure yet, clear the field instead.
+                  </div>
+                )}
               </div>
               <div style={inpWrap}>
                 <label htmlFor="tr-prior-agi" style={inputLbl}>Prior Year AGI (Form 1040 Line 11)</label>
-                <Step2MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="0" nonNegative />
+                <Step2MoneyInput id="tr-prior-agi" value={priorYearAGI} onChange={setPriorYearAGI} placeholder="Leave blank if unknown" nonNegative coerceEmptyBlurToZero={false} />
               </div>
             </div>
 
@@ -2142,18 +2223,33 @@ export default function TaxReturn() {
                 // result.totalW2ForFICA (= w2Total in the engine); we derive officer salary
                 // from the entity list and other W-2 as the remainder.
                 ...((() => {
-                  const officerSalary = (Array.isArray(entities) ? entities : []).reduce((s, e) => {
+                  const officerSalaryRaw = (Array.isArray(entities) ? entities : []).reduce((s, e) => {
                     if (!e) return s
                     const isCorp = /s.?corp/i.test(e.type || '') || /c.?corp/i.test(e.type || '')
                     return isCorp ? s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0) : s
                   }, 0)
-                  const otherW2 = Math.max(0, (result.totalW2ForFICA || 0) - officerSalary)
-                  const showSplit = officerSalary > 0 && result.totalW2ForFICA > 0
+                  // OCT-4 ONCE-OVER L-3 (Oct 2026): result.totalW2ForFICA is the ANNUALIZED household
+                  // W-2 in YTD mode, but the officer salary summed above is the raw YTD entry — so the
+                  // remainder row ("Other employer") silently absorbed officer × (yf − 1) and showed a
+                  // phantom day-job W-2 (live repro: YTD through Jun, officer $100k → "Other employer
+                  // (Step 2) $100,000" with the Step 2 field at $0). Annualize the officer figure with
+                  // the same factor the engine applied so the two rows sum to the engine total.
+                  const officerSalary = Math.round(officerSalaryRaw * (ytdMode ? ytdFactor : 1))
+                  const spouseW2 = Math.max(0, result.w2SpouseApplied || 0)   // OCT-4 L-2
+                  const otherW2 = Math.max(0, (result.totalW2ForFICA || 0) - officerSalary - spouseW2)
+                  const showSplit = (officerSalary > 0 || spouseW2 > 0) && result.totalW2ForFICA > 0
+                  if (showSplit && officerSalary === 0) {
+                    return [
+                      { label: 'W-2 Wages — Your employer(s) (Step 2)', value: otherW2, sign: 1, hide: otherW2 === 0 },
+                      { label: 'W-2 Wages — Spouse (Step 2)', value: spouseW2, sign: 1, hide: spouseW2 === 0 },
+                    ]
+                  }
                   if (showSplit) {
                     return [
                       // C-CORP AUDIT (11 Sep 2026): the label said "S-Corp" even when the salary came from a C-Corp.
-                      { label: `W-2 Wages — ${ccorp.count > 0 && !(Array.isArray(entities) ? entities : []).some(e => e && isSCorpEntity(e.type)) ? 'C-Corp' : 'S-Corp'} officer salary (Step 1)`, value: officerSalary, sign: 1, hide: false, note: 'Flows automatically from Step 1 — do not re-enter in Step 2' },
+                      { label: `W-2 Wages — ${ccorp.count > 0 && !(Array.isArray(entities) ? entities : []).some(e => e && isSCorpEntity(e.type)) ? 'C-Corp' : 'S-Corp'} officer salary (Step 1)${ytdMode ? ' — annualized' : ''}`, value: officerSalary, sign: 1, hide: false, note: ytdMode ? `Flows automatically from Step 1 — ${fmt(officerSalaryRaw)} year-to-date × ${ytdFactor.toFixed(2)} for a full-year projection` : 'Flows automatically from Step 1 — do not re-enter in Step 2' },
                       { label: 'W-2 Wages — Other employer (Step 2)', value: otherW2, sign: 1, hide: otherW2 === 0 },
+                      { label: 'W-2 Wages — Spouse (Step 2)', value: spouseW2, sign: 1, hide: spouseW2 === 0 },   // OCT-4 L-2
                     ]
                   }
                   return [{ label: 'W-2 Wages', value: result.totalW2ForFICA || 0, sign: 1, hide: !(result.totalW2ForFICA > 0) }]
@@ -2301,6 +2397,10 @@ export default function TaxReturn() {
                 { label: 'Charitable deduction for non-itemizers (§170(p))', value: result.nonItemizerCharitable || 0, sign: -1,
                   hide: !(result.nonItemizerCharitable > 0),
                   note: `Cash gifts to public charities, up to ${filingStatus === 'mfj' ? '$2,000' : '$1,000'} for 2026+ filers who take the standard deduction (IRC §170(p), OBBBA).` },
+                // OCT-4 N-12a: OBBBA §70103 senior deduction row.
+                { label: `Senior deduction (§63(f)(5), OBBBA)${(result.seniorQualifiedCount || 0) > 1 ? ' × 2' : ''}`, value: result.seniorDeduction || 0, sign: -1,
+                  hide: !(result.seniorDeduction > 0),
+                  note: `${fmt(SENIOR_DEDUCTION_AMOUNT)} per individual age 65+ for ${SENIOR_DEDUCTION_FIRST_YEAR}–${SENIOR_DEDUCTION_LAST_YEAR}, reduced by ${Math.round(SENIOR_DEDUCTION_PHASEOUT_RATE * 100)}% of MAGI above ${fmt(filingStatus === 'mfj' ? SENIOR_DEDUCTION_PHASEOUT_START_JOINT : SENIOR_DEDUCTION_PHASEOUT_START_OTHER)} (OBBBA §70103). Allowed whether or not you itemize.` },
                 { label: '—', value: 0, divider: true },
                 { label: 'Taxable Income (before §199A)', value: result.taxableBeforeQBI,                  sign: 1 },
                 // AUDIT F-6/B-1 (Jul 2026): this row used to HIDE itself when the deduction was
@@ -2311,7 +2411,13 @@ export default function TaxReturn() {
                   hide: result.qbi === 0 && !result.qbiWageDataMissing,
                   accent: result.qbiWageDataMissing ? R : '#059669',
                   note: result.qbiWageDataMissing
-                    ? 'Capped by the §199A(b)(2)(B) W-2 wage / UBIA limit. Your taxable income is above the §199A threshold, and this record reports $0 of W-2 wages and $0 of qualified property (UBIA) — so the cap is $0. If the business does pay W-2 wages or holds qualified property, enter them in Step 1 to recover this deduction.'
+                    // OCT-4 ONCE-OVER (Oct 2026): an SSTB inside the phase-in range is reduced first
+                    // by the §199A(d)(3) applicable percentage; wages/UBIA can only lift the
+                    // remaining fraction, never "recover" the deduction. Say so instead of
+                    // promising a recovery that the statute does not allow.
+                    ? (result.qbiHasSstb && (result.qbiSstbApplicablePct ?? 1) < 1
+                        ? `Reduced mainly by the §199A(d)(3) SSTB phase-in: at this taxable income only ${Math.round((result.qbiSstbApplicablePct || 0) * 100)}% of the specified-service business's QBI counts, and that remaining share is then subject to the §199A(b)(2)(B) W-2 wage / UBIA limit — which this record reports as $0 of both. Entering W-2 wages or UBIA in Step 1 can raise the deduction only on that ${Math.round((result.qbiSstbApplicablePct || 0) * 100)}% share; above ${fmt(((QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[DEFAULT_TAX_YEAR])[filingStatus] ?? (QBI_THRESHOLDS[taxYear] || QBI_THRESHOLDS[DEFAULT_TAX_YEAR]).single) + ((QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[DEFAULT_TAX_YEAR])[filingStatus] ?? (QBI_PHASE_IN_RANGE[taxYear] || QBI_PHASE_IN_RANGE[DEFAULT_TAX_YEAR]).single))} of taxable income an SSTB qualifies for nothing at all.`
+                        : 'Capped by the §199A(b)(2)(B) W-2 wage / UBIA limit. Your taxable income is above the §199A threshold, and this record reports $0 of W-2 wages and $0 of qualified property (UBIA) — so the cap is $0. If the business does pay W-2 wages or holds qualified property, enter them in Step 1 to recover this deduction.')
                     : undefined },
                 // FOURTH READ, second pass (14 Sep 2026): the engine applies the §68 2/37 reduction
                 // AFTER the §199A deduction (taxableIncome = taxableAfterQBI + itemizedLimitReduction)
@@ -2366,7 +2472,7 @@ export default function TaxReturn() {
                   // NINTH PASS N-1 (22 Sep 2026): so is the §6413(c) excess Social Security withholding (Schedule 3 line 11).
                   note: [
                     (result.addlMedicareWithheld || 0) > 0
-                      ? `Includes ${fmt(result.addlMedicareWithheld)} of Additional Medicare Tax your employer was required to withhold on wages above $200,000 (W-2 Box 6 excess; IRC §3102(f)) — credited on Form 1040 line 25c, so it is not part of the Box 2 figure you entered${calcInput.status === 'mfj' && nf(w2Income) > 200000 ? '. The other-employer W-2 is treated as one W-2; if it combines both spouses\' wages, each employer withheld only on its own wages above $200,000, so the credit actually withheld may be smaller than shown' : ''}`
+                      ? `Includes ${fmt(result.addlMedicareWithheld)} of Additional Medicare Tax your employer was required to withhold on wages above $200,000 (W-2 Box 6 excess; IRC §3102(f)) — credited on Form 1040 line 25c, so it is not part of the Box 2 figure you entered${calcInput.status === 'mfj' && nf(w2Income) > 200000 && nf(w2Spouse) === 0 ? '. The other-employer W-2 is treated as one W-2; if it combines both spouses\' wages, enter your spouse\'s wages in the separate spouse field — each employer withheld only on its own wages above $200,000, so the credit actually withheld may be smaller than shown' : ''}${calcInput.status === 'mfj' && nf(w2Spouse) > 0 ? '. Your wages and your spouse\'s are each treated as one employer\'s W-2' : ''}`
                       : null,
                     (result.excessSSWithheld || 0) > 0
                       ? `Includes ${fmt(result.excessSSWithheld)} of excess Social Security tax withheld — your W-2 wages from two or more employers together exceed the ${fmt(result.ssWageBase || 0)} wage base, and each employer withheld 6.2% on its own; the excess is a refundable credit on Form 1040 Schedule 3, line 11 (IRC §31(b), §6413(c)). It is not part of the Box 2 figure you entered`
@@ -2580,6 +2686,11 @@ export default function TaxReturn() {
                 Your taxable income is above the §199A threshold, so the deduction is limited to the greater of
                 50% of the business&apos;s W-2 wages, or 25% of W-2 wages plus 2.5% of qualified property (UBIA).
                 This record reports <strong>$0 of both</strong>, so the cap is <strong>$0</strong>.
+                {/* OCT-4 ONCE-OVER (Oct 2026): SSTB phase-in — the wage limit applies only to the
+                    applicable-percentage share; do not imply wages restore the whole deduction. */}
+                {result.qbiHasSstb && (result.qbiSstbApplicablePct ?? 1) < 1 && (
+                  <> Because a business on this return is a specified service trade or business (SSTB) and your taxable income is inside the §199A(d)(3) phase-in range, only <strong>{Math.round((result.qbiSstbApplicablePct || 0) * 100)}%</strong> of its QBI counts in the first place — W-2 wages or UBIA can raise the deduction on that share only, not restore the full 20%.</>
+                )}
               </div>
               <div style={{ marginTop: 6 }}>
                 If that&apos;s right — a sole proprietor with no payroll and no depreciable property — then this
