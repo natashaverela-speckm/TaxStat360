@@ -354,7 +354,8 @@ export const CAP_LOSS_ORDINARY_LIMIT_MFS = 1500  // IRC §1211(b) (married filin
 //   Allowance is fully eliminated when AGI ≥ PAL_PHASE_OUT_END.
 //
 // Thresholds: NOT inflation-adjusted — these are statutory dollar amounts in §469(i)(3)(A).
-// MFS filers: $0 allowance regardless of AGI — §469(i)(4).
+// MFS filers: $0 allowance unless they lived apart from the spouse ALL year — §469(i)(5)
+// (see the *_MFS_APART constants below).
 //
 // Usage: REP (Real Estate Professional) status bypasses §469(i) entirely —
 // REPs deduct unlimited rental losses against ordinary income if they materially
@@ -370,6 +371,12 @@ export const PAL_SPECIAL_ALLOWANCE_BASE = 25000   // §469(i)(2) — max allowan
 export const PAL_PHASE_OUT_START = 100000          // §469(i)(3)(A) — phase-out begins here
 export const PAL_PHASE_OUT_END = 150000            // §469(i)(3)(A) — allowance = $0 at this AGI
 export const PAL_PHASE_OUT_RATE = 0.50             // §469(i)(3)(A) — 50 cents per dollar of excess
+// OCT-4 ONCE-OVER L-5 (Oct 2026): §469(i)(5) — a married taxpayer filing separately who
+// LIVED APART from the spouse for the ENTIRE year gets half the allowance ($12,500) with the
+// phase-out starting at half the threshold ($50,000, gone at $75,000). Spouses who lived
+// together at any time during the year get $0 (§469(i)(5)(B)). Statutory, not indexed.
+export const PAL_SPECIAL_ALLOWANCE_BASE_MFS_APART = 12500   // §469(i)(5)(A)(i)
+export const PAL_PHASE_OUT_START_MFS_APART = 50000          // §469(i)(5)(A)(ii)
 
 // ─── S-CORP REASONABLE COMPENSATION — IRC §3121; Rev. Rul. 74-44 ─────────────
 // The IRS requires S-Corp shareholder-employees to receive reasonable compensation
@@ -473,6 +480,20 @@ export const CTC_PHASEOUT_THRESHOLD_MFJ = 400000   // §24(h)(3) — joint retur
 export const CTC_PHASEOUT_THRESHOLD_OTHER = 200000 // §24(h)(3) — single, HOH, MFS, QSS, all other filers
 export const CTC_PHASEOUT_STEP = 1000              // §24(b)(2) — excess measured per $1,000
 export const CTC_PHASEOUT_REDUCTION_PER_STEP = 50  // §24(b)(2) — $50 reduction per $1,000 step
+
+// ─── OBBBA §70103 — ADDITIONAL DEDUCTION FOR SENIORS (IRC §63(f)(5)) ────────────────────
+// OCT-4 ONCE-OVER N-12a (Oct 2026). Tax years 2025–2028 only: $6,000 per qualified individual
+// (age 65 or older before the close of the year, with an SSN), allowed whether or not the
+// taxpayer itemizes, reduced by 6% of MAGI above $75,000 ($150,000 on a joint return). A
+// married individual qualifies only on a joint return (§63(f)(5)(B)(ii)), so MFS gets $0.
+// Statutory dollar amounts — NOT indexed for inflation — so they live here, not in TAX_TABLES.
+// MAGI is AGI plus the §911/§931/§933 exclusions, none of which the app models, so AGI is used.
+export const SENIOR_DEDUCTION_AMOUNT = 6000
+export const SENIOR_DEDUCTION_PHASEOUT_RATE = 0.06
+export const SENIOR_DEDUCTION_PHASEOUT_START_JOINT = 150000
+export const SENIOR_DEDUCTION_PHASEOUT_START_OTHER = 75000
+export const SENIOR_DEDUCTION_FIRST_YEAR = 2025
+export const SENIOR_DEDUCTION_LAST_YEAR = 2028
 // IRC §24(h)(2) base child tax credit. SAFETY FALLBACK ONLY — the authoritative
 // per-year amount lives in TAX_TABLES[year].ctc.perChild; this is used only if a
 // year's table is somehow missing the field, so it can never silently drift.

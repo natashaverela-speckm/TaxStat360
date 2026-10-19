@@ -72,10 +72,19 @@ import {
   PAL_SPECIAL_ALLOWANCE_BASE,
   PAL_PHASE_OUT_START,
   PAL_PHASE_OUT_RATE,
+  PAL_SPECIAL_ALLOWANCE_BASE_MFS_APART,   // OCT-4 L-5
+  PAL_PHASE_OUT_START_MFS_APART,          // OCT-4 L-5
   NOL_CARRYFORWARD_CAP_RATE,
   // AUDIT F10 / PASS-6 P6-1 (Jul 2026): §1211(b) capital-loss limitation — statutory
   // (unindexed) dollar limits, single-sourced in constants.js per the M1 pattern.
   CAP_LOSS_ORDINARY_LIMIT,
+  // OCT-4 N-12a: OBBBA §70103 senior deduction (statutory, unindexed, 2025–2028)
+  SENIOR_DEDUCTION_AMOUNT,
+  SENIOR_DEDUCTION_PHASEOUT_RATE,
+  SENIOR_DEDUCTION_PHASEOUT_START_JOINT,
+  SENIOR_DEDUCTION_PHASEOUT_START_OTHER,
+  SENIOR_DEDUCTION_FIRST_YEAR,
+  SENIOR_DEDUCTION_LAST_YEAR,
   CAP_LOSS_ORDINARY_LIMIT_MFS,
   CTC_CREDIT_PER_CHILD_FALLBACK,
   // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone §121 calculator.
@@ -355,8 +364,19 @@ function calcStudentLoanDeduction(interestPaid, magi, taxYear, status) {
   return Math.round(cap * (1 - (m - start) / (end - start)))                        // §221(b)(2)(B)
 }
 
-function calc469iAllowance(magi, status, isActiveParticipant = true) {
-  if (status === 'mfs' || !isActiveParticipant) return 0
+function calc469iAllowance(magi, status, isActiveParticipant = true, mfsLivedApartAllYear = false) {
+  if (!isActiveParticipant) return 0
+  // OCT-4 ONCE-OVER L-5 (Oct 2026): §469(i)(5) — MFS gets $0 unless the spouses lived apart
+  // for the ENTIRE year, in which case the allowance ($12,500) and the phase-out start
+  // ($50,000) are halved. Before this the MFS answer was $0 unconditionally.
+  if (status === 'mfs') {
+    if (!mfsLivedApartAllYear) return 0
+    return Math.max(
+      0,
+      PAL_SPECIAL_ALLOWANCE_BASE_MFS_APART -
+        Math.max(0, ((magi || 0) - PAL_PHASE_OUT_START_MFS_APART) * PAL_PHASE_OUT_RATE)
+    )
+  }
   return Math.max(
     0,
     PAL_SPECIAL_ALLOWANCE_BASE -
@@ -392,6 +412,56 @@ const QBI_MIN_THRESHOLD  = _byYearDefined(t => t.qbi.minThreshold)
 // proxy and subtracted again in k1Capped, so it never reduces K-1 ordinary
 // income. Net effect: k1Capped = k1NonPassive + sec179Disallowed (a disallowed
 // §179 amount does not reduce this year's income; it carries forward).
+// OCT-4 ONCE-OVER M-1 (Oct 2026): single source of truth for an entity's §199A(b)(4) W-2
+// wage figure. The Step 1 field `box17V_wages` is the entity's TOTAL W-2 payroll (K-1 Box 17
+// Code V / Box 20 Code Z; for a P&L-entered S-Corp, officer salary PLUS staff payroll). When
+// it is blank the officer's own W-2 (officerW2 / pnl.officerSalary) stands in for it. The
+// pre-fix read was `box17V_wages || officerW2 || officerSalary`, so a figure typed into the
+// field REPLACED the officer salary outright: an owner with a $100k officer W-2 who entered
+// $50k of staff payroll got a $25,000 wage limit instead of $75,000 (live repro Oct 4 2026:
+// S-Corp K-1 $300k / officer $100k + Sch C $200k — §199A fell from $50,000 to $25,000).
+//
+// Rule now: the wage figure can never be LESS than the officer's own W-2 from that entity,
+// because total payroll includes it (Reg. §1.199A-2(b)(2); Notice 2018-64 — W-2 wages are
+// the entity's Box 1 / §6051(a)(3) wages, officer included). A typed total below the officer
+// salary is therefore necessarily missing the officer comp and is floored at it; a typed total
+// at or above it is used as entered (a K-1 Code V statement already includes officer wages,
+// so SUMMING would double-count those users — hence a floor, not an addition). Step 1 flags
+// the floored case to the user (`qbiW2WagesBelowOfficer` in CalculateTaxInner) so the entry
+// can be corrected to the true total.
+//
+// `qbiW2WagesResolved` is an engine-internal override set by calcTaxReturn's EXT-7 SEHI
+// grossup bump; it is already floored and must not be floored again.
+function getEntityQbiW2Wages(e) {
+  if (!e) return 0
+  if (e.qbiW2WagesResolved !== undefined && e.qbiW2WagesResolved !== null) {
+    return Math.max(0, nf(e.qbiW2WagesResolved))
+  }
+  const officer = Math.max(0, nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0)
+  const entered = Math.max(0, nf(e.box17V_wages) || 0)
+  return Math.max(entered, officer)
+}
+
+// OCT-4 ONCE-OVER N-12a (Oct 2026): OBBBA §70103 additional deduction for seniors (IRC
+// §63(f)(5)) — single source of truth. $6,000 per qualified individual (age 65+ at year end),
+// 2025–2028, available to itemizers and non-itemizers alike, reduced by 6% of MAGI over
+// $75,000 ($150,000 joint). A married individual must file jointly (§63(f)(5)(B)(ii)), so
+// MFS receives nothing; a qualifying surviving spouse files an individual return and uses the
+// $75,000 threshold (same reading as §170(p) / CTC / §461(l) in this file). Returns the
+// deduction and the count of qualified individuals it was computed for.
+function calcSeniorDeduction({ taxYear, status = 'single', magi = 0, age65Self = false, age65Spouse = false } = {}) {
+  const yr = parseInt(taxYear)
+  const st = String(status || 'single').toLowerCase()
+  if (!(yr >= SENIOR_DEDUCTION_FIRST_YEAR && yr <= SENIOR_DEDUCTION_LAST_YEAR)) return { deduction: 0, qualified: 0 }
+  if (st === 'mfs') return { deduction: 0, qualified: 0 }
+  const qualified = (age65Self === true ? 1 : 0) + (st === 'mfj' && age65Spouse === true ? 1 : 0)
+  if (qualified === 0) return { deduction: 0, qualified: 0 }
+  const start = st === 'mfj' ? SENIOR_DEDUCTION_PHASEOUT_START_JOINT : SENIOR_DEDUCTION_PHASEOUT_START_OTHER
+  const gross = SENIOR_DEDUCTION_AMOUNT * qualified
+  const reduction = Math.max(0, (nf(magi) - start)) * SENIOR_DEDUCTION_PHASEOUT_RATE
+  return { deduction: Math.max(0, Math.round(gross - reduction)), qualified }
+}
+
 function calc179Limitation({ k1NonPassive = 0, entities = [], w2Income = 0, taxYear = 2026 } = {}) {
   const list = Array.isArray(entities) ? entities : []
   const totalSec179          = list.reduce((s, e) => s + nf(e?.box11_12), 0)
@@ -910,7 +980,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
     )
   }
   const totalWages = entityQbiData.reduce((s, e) => {
-    const w = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0
+    const w = getEntityQbiW2Wages(e)
     return s + (e.box17V_sstb ? w * sstbApplicablePct : w)
   }, 0)
   const totalUBIA = entityQbiData.reduce((s, e) => {
@@ -971,7 +1041,7 @@ function _calcQBI(qbiIncome, taxableBeforeQBI, capitalGains, opts = {}) {
         ? nf(e.qbiShareAdjusted)
         : getEntityK1Share(e) - nf(e.box11_12)
       const qbiPos = Math.max(0, rawQBI) * scale
-      const wages  = (parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0) * scale
+      const wages  = getEntityQbiW2Wages(e) * scale
       const ubia   = (parseFloat(e.box17V_ubia) || 0) * scale
       const wLimit = Math.max(wages * W2_WAGE_LIMIT_RATE, wages * W2_WAGE_ALT_RATE + ubia * UBIA_RATE)
       return { qbiPos, wLimit }
@@ -1106,7 +1176,7 @@ function scorpSeTaxSavings({ k1Income, ficaSubjectWages = 0, ssWageBase = 0 } = 
 // not via MoneyInput — concatenated instead of adding and produced NaN through the whole
 // return; a negative W-2 reduced AGI. Coerce once, up front, with the same comma-safe nf()
 // every other read uses; W-2 (Box 1 can never be negative) is floored at 0.
-const _RAW_NUMERIC_INPUTS = ['w2', 'k1Total', 'intInc', 'divInc', 'qualDiv', 'taxableSS', 'iraIncome']
+const _RAW_NUMERIC_INPUTS = ['w2', 'w2Spouse', 'k1Total', 'intInc', 'divInc', 'qualDiv', 'taxableSS', 'iraIncome']
 function _coerceNumericInputs(input) {
   if (!input || typeof input !== 'object') return input
   const out = { ...input }
@@ -1115,6 +1185,7 @@ function _coerceNumericInputs(input) {
     out[k] = nf(out[k])
   }
   if (out.w2 !== undefined) out.w2 = Math.max(0, out.w2)
+  if (out.w2Spouse !== undefined) out.w2Spouse = Math.max(0, out.w2Spouse)   // OCT-4 L-2
   return out
 }
 function calcTaxReturn(input) {
@@ -1126,7 +1197,16 @@ function calcTaxReturn(input) {
     // NaN. Default here + calcAMT-level fallbacks below make the engine total-safe.
     taxYear, status = 'single', dependents,
     entities: _rawEntities = [],
-    w2 = 0, k1Total = 0, rentalNet = 0, rentalQbiEligible = false,   // ITEM 3 (A6): Step-2 direct-rental §199A opt-in
+    w2: _w2Input = 0, k1Total = 0, rentalNet = 0, rentalQbiEligible = false,   // ITEM 3 (A6): Step-2 direct-rental §199A opt-in; OCT-4 L-2: `w2` is rebuilt below as household = own + spouse
+    // OCT-4 ONCE-OVER L-2 (Oct 2026): the SPOUSE's W-2 wages on a joint return, entered
+    // separately so the per-taxpayer credits can be computed instead of assumed away. `w2`
+    // stays the taxpayer's own household figure (officer salary + own other-employer W-2);
+    // w2Spouse is folded into it below for every INCOME purpose (AGI, FICA, Additional
+    // Medicare tax base, ACTC earned income) and kept apart for the two per-source
+    // withholding credits: §3102(f) Additional Medicare withholding is per paying employer,
+    // and the §31(b)/§6413(c) excess-Social-Security credit is per taxpayer — the spouse's
+    // wages never combine with the owner's against one wage base. Ignored unless MFJ.
+    w2Spouse: _w2SpouseInput = 0,
     // FOURTH READ R-2 (14 Sep 2026) — MFJ spouse attribution for Schedule SE. `w2` is the
     // household's combined W-2 figure (other-employer wages + every S-Corp officer salary).
     // For a joint return this is the portion of that figure earned by the SAME individual
@@ -1159,6 +1239,8 @@ function calcTaxReturn(input) {
     // materiallyParticipates flag (see perPropertyRegimeActive below). Legacy callers
     // that supply none of these keep the prior "REP ⇒ all nonpassive" behavior.
     rentalAggregationElection = false,
+    mfsLivedApartAllYear = false,   // OCT-4 L-5: §469(i)(5) MFS lived-apart-all-year attestation
+    age65Self = false, age65Spouse = false,   // OCT-4 N-12a: OBBBA §70103 senior deduction attestations
     // C-12 (Finding 2 — §469(c)(7)(B) quantitative gate): the aggregation election only
     // makes the rental portfolio nonpassive when the two-part hours test is actually met
     // (> 750 real-property hours AND those hours > 50% of total personal-service hours).
@@ -1621,6 +1703,10 @@ function calcTaxReturn(input) {
   // (FICA_SS_RATE*2) on every dollar of wage-base room their W-2 wages had already
   // consumed (e.g. $140,000 W-2 + $234,200 SE earnings on a 2025 return: uncoordinated
   // ~$28.1k vs. correctly-coordinated ~$10.7k).
+  // OCT-4 L-2: fold the spouse's wages into the household W-2 for income purposes (see the
+  // destructuring note). Nothing above this line reads `w2`.
+  const w2SpouseAmt = String(status).toLowerCase() === 'mfj' ? Math.max(0, nf(_w2SpouseInput)) : 0
+  const w2 = Math.max(0, nf(_w2Input)) + w2SpouseAmt
   const totalW2ForFICA = Math.max(0, nf(w2))
   // AUDIT FIX (Finding, fresh-eyes re-audit, Aug 2026): the Finding-4 coordination above is
   // only valid when totalW2ForFICA and seNetIncome belong to the SAME individual -- true for
@@ -2028,7 +2114,7 @@ function calcTaxReturn(input) {
   const applyPassiveNetting = (passiveLoss, preRentalMagi) => {
     const offset    = Math.min(passiveK1Income, -passiveLoss)
     const remaining = passiveLoss + offset                       // ≤ 0
-    const specialAllowance = calc469iAllowance(preRentalMagi, status, effectiveIsActiveParticipant)
+    const specialAllowance = calc469iAllowance(preRentalMagi, status, effectiveIsActiveParticipant, mfsLivedApartAllYear === true)
     passiveLossAbsorbedByK1 = offset
     const out = Math.max(remaining, -specialAllowance) - offset
     return out === 0 ? 0 : out                                   // normalize −0 (display / Object.is)
@@ -2266,7 +2352,13 @@ function calcTaxReturn(input) {
   const nonItemizerCharitable = (taxYear >= 2026 && !effectivelyItemizing)
     ? Math.min(charEntered, status === 'mfj' ? 2000 : 1000)
     : 0
-  const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable)
+  // OCT-4 N-12a: OBBBA §70103 senior deduction. MAGI here is pre-NOL AGI — the §172(a)(2) 80%
+  // cap below is measured on taxable income computed after this deduction, so using post-NOL
+  // AGI would be circular; the two interact only on a return with both an NOL and a 65+ filer.
+  const _seniorCalc = calcSeniorDeduction({ taxYear, status, magi: grossIncomeBeforeNOL - adjustments, age65Self, age65Spouse })
+  const seniorDeduction = _seniorCalc.deduction
+  const seniorQualifiedCount = _seniorCalc.qualified
+  const taxableBeforeNOL = Math.max(0, grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable - seniorDeduction)
   const priorNOL         = Math.max(0, nf(nolCarryforward))
   // M1 (audit F-02): §172(a)(2) 80%-of-taxable-income cap — literal replaced by the
   // named constant that previously sat unused in constants.js.
@@ -2412,12 +2504,58 @@ function calcTaxReturn(input) {
   // per-property attestation (qbiEligible), never automatic. Scale the rental QBI
   // contribution to the attested-eligible share of rental net (default: none). §469, EBL
   // and NII treatment above are unchanged — only the amount entering the QBI base is gated.
+  // OCT-4 ONCE-OVER L-1 (Oct 2026): the gate above used to be a FRACTION applied to the
+  // already-pooled, §469-netted, floored rental figure — so a rental the user had NOT elected
+  // into §199A still netted against one they had (live repro Oct 4 2026: Rental A −$40,000,
+  // not elected, active participant; Rental B +$5,000, elected; W-2 $120k → allowed rental
+  // −$15,000, QBI $0 where $1,000 (20% × $5,000) was due; with A at +$10,000 the result was
+  // correctly per-property). Reg. §1.199A-3(b)(1)(iv): QBI counts the §469-ALLOWED amount from
+  // each §199A trade or business — a non-§199A rental's loss is not a QBI item at all and
+  // cannot reduce another business's QBI. So when any rental card is elected, build the QBI
+  // contribution per property from each elected card's own allowed amount:
+  //   • nonpassive (REP + material participation / §1.469-9(g) aggregation): net, in full;
+  //   • passive income: net, in full (income is always allowed);
+  //   • passive loss: its Form 8582 Part VIII share of the pool's ALLOWED loss — the pool's
+  //     unallowed figure (palSuspendedRental) spread pro rata over every loss property's
+  //     (current-year loss + its own prior-year carryforward). An allowed prior-year loss is a
+  //     QBI item in the year allowed (post-2017 losses, same reg.).
+  // A negative result is kept (an allowed loss from an elected rental is negative QBI and nets
+  // under Reg. §1.199A-1(d)(2)(iii)); the pooled path's Math.max(0, …) floor only ever
+  // applied to the mixed pool. The Step 2 lump `rentalNet` (tests only) keeps the old
+  // proportional treatment.
   {
-    const rentalQbiEligibleNet = step1RentalQbiEligibleNet + (rentalQbiEligible ? nf(rentalNet) : 0)
-    const rentalQbiEligibleFraction = combinedRentalNet !== 0
-      ? Math.max(0, Math.min(1, rentalQbiEligibleNet / combinedRentalNet))
-      : 0
-    rentalQbiContribution = Math.round(rentalQbiContribution * rentalQbiEligibleFraction)
+    const reCards = entities.filter(e => e && isRealEstateEntity(e.type))
+    const anyCardElected = reCards.some(e => e.qbiEligible === true)
+    if (anyCardElected) {
+      const aggNonpassive = perPropertyRegimeActive && effectiveIsREP && rentalAggregationElection === true && !repAggregationGatedOut
+      const items = reCards.map(e => {
+        const net = getEntityK1Share(e) - nf(e.box11_12)
+        const nonpassive = effectiveIsREP && (!perPropertyRegimeActive || aggNonpassive || e.materiallyParticipates === true)
+        const lossBase = nonpassive ? 0 : Math.max(0, -net) + Math.max(0, nf(e.priorPAL) || 0)
+        return { e, net, nonpassive, lossBase }
+      })
+      const cardPriorPAL = items.reduce((s, it) => s + (it.nonpassive ? 0 : Math.max(0, nf(it.e.priorPAL) || 0)), 0)
+      const unattributedPriorPAL = Math.max(0, priorPAL - cardPriorPAL)   // legacy pooled carryforward not on any card
+      const totalLossBase = items.reduce((s, it) => s + it.lossBase, 0) + unattributedPriorPAL
+      const unallowed = Math.max(0, palSuspendedRental)
+      const allowedFrac = totalLossBase > 0 ? Math.max(0, Math.min(1, 1 - unallowed / totalLossBase)) : 1
+      const perProperty = items.reduce((s, it) => {
+        if (it.e.qbiEligible !== true) return s
+        if (it.nonpassive) return s + it.net
+        return s + Math.max(0, it.net) - it.lossBase * allowedFrac
+      }, 0)
+      const lump = nf(rentalNet)
+      const lumpShare = (rentalQbiEligible && lump !== 0 && combinedRentalNet !== 0)
+        ? rentalQbiContribution * Math.max(0, Math.min(1, lump / combinedRentalNet))
+        : 0
+      rentalQbiContribution = Math.round(perProperty + lumpShare)
+    } else {
+      const rentalQbiEligibleNet = step1RentalQbiEligibleNet + (rentalQbiEligible ? nf(rentalNet) : 0)
+      const rentalQbiEligibleFraction = combinedRentalNet !== 0
+        ? Math.max(0, Math.min(1, rentalQbiEligibleNet / combinedRentalNet))
+        : 0
+      rentalQbiContribution = Math.round(rentalQbiContribution * rentalQbiEligibleFraction)
+    }
   }
   // F4: guaranteed payments are in seNetIncome (hence seK1AfterAdjustments) for SE-tax
   // and SEHI earned-income purposes, but are EXCLUDED from QBI (Reg. §1.199A-3(b)(2)(ii)(A)),
@@ -2541,10 +2679,15 @@ function calcTaxReturn(input) {
   const qbiEligibleEntitiesForCalc = sehiUnambiguousForQBI && sehiScorpWageGrossUp > 0
     ? qbiEligibleEntities.map(e => {
         if (!e || !isSCorpEntity(e.type)) return e
-        const ownWage = parseFloat(e.box17V_wages) || parseFloat(e.officerW2) || parseFloat(e.pnl?.officerSalary) || 0
-        const share   = _scorpOfficerW2ForSEHI > 0 ? ownWage / _scorpOfficerW2ForSEHI : 0
+        // OCT-4 M-1 (Oct 2026): the grossup is apportioned by the OFFICER salary (that is
+        // what _scorpOfficerW2ForSEHI sums), and the bump is written to the resolved
+        // override slot rather than back into box17V_wages, so getEntityQbiW2Wages() does not
+        // apply its officer-salary floor a second time on top of an already-floored figure.
+        const officerWage = Math.max(0, nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0)
+        const ownWage = getEntityQbiW2Wages(e)
+        const share   = _scorpOfficerW2ForSEHI > 0 ? officerWage / _scorpOfficerW2ForSEHI : 0
         const bumped  = ownWage + sehiScorpWageGrossUp * share
-        return { ...e, box17V_wages: String(bumped) }
+        return { ...e, qbiW2WagesResolved: bumped }
       })
     : qbiEligibleEntities
   // FIFTH READ full pass (15 Sep 2026): give each SE-subject entity its proportional share
@@ -2623,7 +2766,7 @@ function calcTaxReturn(input) {
   // Repro: 2025 single, W-2 $10,000, STCL −$10,000: the engine carried $7,000; the
   // worksheet carries the full $10,000 (taxable income was already $0 before the loss).
   if (_allowedLossUsed > 0) {
-    const _signedTaxable = grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable - nolAllowed - qbi
+    const _signedTaxable = grossIncomeBeforeNOL - adjustments - deduction - nonItemizerCharitable - seniorDeduction - nolAllowed - qbi
     const _lossAbsorbed  = Math.max(0, Math.min(_allowedLossUsed, _signedTaxable + _allowedLossUsed))
     const _stAbsorbed    = Math.min(_stLossPool, _lossAbsorbed)
     capLossCarryoverST    = _stLossPool - _stAbsorbed
@@ -2838,7 +2981,10 @@ function calcTaxReturn(input) {
       if (!e || !(isSCorpEntity(e.type) || isCCorpEntity(e.type))) return s
       return s + _addlMedPerSource(Math.max(0, nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0))
     }, 0)
-    + _addlMedPerSource(Math.max(0, nf(w2) - _officerSalariesForWithholding))
+    // OCT-4 L-2: the owner's other-employer W-2 is the household figure less the officer
+    // salaries AND less the spouse's wages (entered separately, one source of their own).
+    + _addlMedPerSource(Math.max(0, nf(w2) - w2SpouseAmt - _officerSalariesForWithholding))
+    + _addlMedPerSource(w2SpouseAmt)
   )
   // ── NINTH PASS N-1 (22 Sep 2026, pre-launch final review) — EXCESS SOCIAL SECURITY TAX
   // WITHHELD IS A REFUNDABLE CREDIT ──────────────────────────────────────────────────────
@@ -2863,8 +3009,13 @@ function calcTaxReturn(input) {
   //   credit above. Form 2210 line 6 counts the excess as withholding, so it joins
   //   `withheld` for the §6654(g)(1) even-spread and the safe-harbor payments.
   const _ssWithheldOn = (wages) => Math.min(Math.max(0, wages / _ytdDivisor), ssWageBase) * FICA_SS_RATE
+  // OCT-4 L-2 (Oct 2026): with the spouse's wages in their own field, the owner's attributed
+  // slice (w2OwnForSE — defaulted by the UI to the owner's whole `w2` once a spouse figure is
+  // present, see resolveW2OwnForSE) is the owner's own multi-employer total; the spouse's
+  // wages are a single-employer figure and never produce an excess on their own. Non-MFJ
+  // returns are one person, so w2SpouseAmt is 0 and the household figure stands.
   const _ownerOtherW2ForSS = String(status).toLowerCase() === 'mfj'
-    ? Math.max(0, w2OwnForSEClamped - _officerSalariesForWithholding)
+    ? Math.max(0, Math.min(w2OwnForSEClamped, nf(w2) - w2SpouseAmt) - _officerSalariesForWithholding)
     : Math.max(0, nf(w2) - _officerSalariesForWithholding)
   const _ssWithheldBySource = entities.reduce((s, e) => {
     if (!e || !(isSCorpEntity(e.type) || isCCorpEntity(e.type))) return s
@@ -3028,6 +3179,7 @@ function calcTaxReturn(input) {
     grossIncome, agi,
     seNetIncome, seEarningsSubject, seTax, halfSE, guaranteedPaymentsTotal,
     employeeFICA, totalW2ForFICA,
+    w2SpouseApplied: w2SpouseAmt,   // OCT-4 L-2
     ficaSavings, ssWageBase, ssWageBaseRoom, seWageBaseW2, w2OwnForSE: w2OwnForSEClamped, k1Distributions,   // R-2: W-2 actually netted against SE room
     selfEmpHealthDed, hsaDed, studentLoanDed, selfEmpRetirementDed, adjustments,
     // EIGHTH PASS F-1/F-2/F-10 (18 Sep 2026): S-Corp entity-level deductions and the caps.
@@ -3050,11 +3202,19 @@ function calcTaxReturn(input) {
     saltEntered, saltAllowed, saltCapApplied, saltDisallowed,  // AUDIT N-1 §164(b) cap
     sCorpEPDividends,                                          // F-9 §1368(c)(2) dividends
     charEntered, charFloorDisallowed, nonItemizerCharitable,   // N-9 / N-9b
+    seniorDeduction, seniorQualifiedCount,   // OCT-4 N-12a (OBBBA §70103)
     itemizedLimitReduction,                                    // N-8 new §68 2/37
 
     unrec1250, collectibles,
     nonSEk1, nonSEk1ForQBI, scorpSEHIQbiReduction, sehiUnambiguousForQBI, seK1AfterAdjustments, qbiBasis, taxableBeforeQBI, prefIncome,
     qbi, qbiLimitApplied, qbiCaps, qbiWageDataMissing,
+    // OCT-4 ONCE-OVER (Oct 2026) — SSTB caption: let the UI say WHICH §199A rule is binding.
+    // `qbiSstbApplicablePct` is the §199A(d)(3) applicable percentage (1 below the threshold,
+    // 0 once fully phased out); `qbiHasSstb` is whether any QBI-eligible business is an SSTB.
+    // When an SSTB is in the phase-in range, the applicable-percentage haircut — not the W-2
+    // wage/UBIA limit — is the dominant reduction, and entering wages cannot "recover" it.
+    qbiSstbApplicablePct: sstbApplicablePct,
+    qbiHasSstb: entitiesLimited.some(e => e && !!e.box17V_sstb && !isCCorpEntity(e.type) && (!isRealEstateEntity(e.type) || e.qbiEligible === true)),
     qbiAggregationApplied,
     qbiAggregationDisclosure,
     totalPrefIncome, taxableAfterQBI, ordinaryTaxableIncome, taxableIncome,
@@ -3306,4 +3466,9 @@ export {
   // Phase 3 (Aug 2026) — LIMITATION 121-HOME-SALE: standalone §121 calculator
   // (AIAnalysis.jsx Reports & Tools). Single source of truth per ARCHITECTURE.md §1.
   calcSection121Exclusion,
+  // OCT-4 M-1: §199A W-2 wage figure per entity (officer-salary floor) — consumed by the
+  // Step 1 card caption/warning so the UI never re-derives the rule.
+  getEntityQbiW2Wages,
+  // OCT-4 N-12a: OBBBA §70103 senior deduction rule — consumed by the Step 2 caption.
+  calcSeniorDeduction,
 }

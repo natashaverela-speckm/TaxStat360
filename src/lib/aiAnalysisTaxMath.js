@@ -181,6 +181,7 @@ export function buildSimulatorBase(rec) {
     otherDeductions:   nf(pnl.otherDeductions) || 0,
     w2Income:          nf(f.w2Income) || 0,   // personal W-2 only — see note above
     w2OwnForSE:        nf(f.w2OwnForSE) || 0, // R-2 (14 Sep 2026): MFJ Schedule SE attribution
+    w2Spouse:          nf(f.w2Spouse) || 0,   // OCT-4 L-2: spouse's own W-2 (MFJ)
     estPaid:           nf(f.estPaid) || 0,
   }
 }
@@ -225,6 +226,7 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     w2Withheld: 0, estPaid: nf(base.estPaid), ytdFactor: 1,
     useItemized: false, itemizedAmt: 0, priorPassiveLossCarryforward: 0,
     w2: w2Own + sal,
+    w2Spouse: nf(base.w2Spouse),   // OCT-4 L-2
     // FOURTH READ R-2, third pass (14 Sep 2026): carry the MFJ attribution so the simulator
     // agrees with Step 2. On Step 2 the attribution is entered against w2Total = personal W-2
     // + officer W-2, so the record's `w2OwnForSE` ALREADY contains whatever officer salary the
@@ -238,7 +240,7 @@ export function computeSimulatorScenario(ctx = {}, delta = {}) {
     // salary change, as before.
     w2OwnForSE: status === 'mfj' && nf(base.w2OwnForSE) > 0
       ? Math.max(0, nf(base.w2OwnForSE) + (sal - nf(base.officerSalary)))
-      : resolveW2OwnForSE({ status, entered: 0, officerW2: (isCC || isSCorpEntity(ctx.entityType)) ? sal : 0 }),
+      : resolveW2OwnForSE({ status, entered: 0, officerW2: (isCC || isSCorpEntity(ctx.entityType)) ? sal : 0, otherW2: w2Own, spouseW2: nf(base.w2Spouse) }),   // OCT-4 L-2
     // Finding 1 follow-up (Jul 2026 audit): carry the limited-partner attestation
     // into the reconstructed entity. Without it, normalizeEntityType defaults a
     // Partnership/LLC to the ACTIVE (SE-subject) variant, so the simulator charged
