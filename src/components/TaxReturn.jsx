@@ -673,7 +673,8 @@ export default function TaxReturn() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [])
 
-  const stdDed      = getStdDed(taxYear, filingStatus)
+  // OCT-19 M-7a: include the §63(f)(1) aged additional amount so the itemize-vs-standard prose matches the engine.
+  const stdDed      = getStdDed(taxYear, filingStatus, (age65Self ? 1 : 0) + (filingStatus === 'mfj' && age65Spouse ? 1 : 0))
   // M2 (audit F-2, Aug 2026): resolved once here so both explanatory text blocks
   // below read the SAME numbers the engine actually applies (getSaltCap uses the
   // identical taxCalc.js table) instead of each retyping the figures as prose.
@@ -1049,7 +1050,8 @@ export default function TaxReturn() {
                     2025–2028 — the app never asked for age, so it was never applied. Two
                     attestations; the engine owns the rule (calcSeniorDeduction). Married filers
                     qualify only on a joint return, so the boxes are hidden for MFS. */}
-                {taxYear >= 2025 && taxYear <= 2028 && filingStatus !== 'mfs' && (
+                {/* OCT-19 M-7a: shown for every year and status — the §63(f)(1) aged standard deduction applies to all of them. */}
+                {(
                   <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 12, color: SL, lineHeight: 1.5 }}>
                     <label htmlFor="tr-age65-self" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                       <input type="checkbox" id="tr-age65-self" checked={age65Self} onChange={e => setAge65Self(e.target.checked)} />
@@ -1061,7 +1063,7 @@ export default function TaxReturn() {
                         My spouse was 65 or older on Dec 31, {taxYear}
                       </label>
                     )}
-                    <InfoTip text={`One Big Beautiful Bill Act §70103 (IRC §63(f)(5)): for ${SENIOR_DEDUCTION_FIRST_YEAR}–${SENIOR_DEDUCTION_LAST_YEAR} each qualified individual age 65 or older at year end (with a Social Security number) gets an additional ${fmt(SENIOR_DEDUCTION_AMOUNT)} deduction, whether or not you itemize. It phases out at ${Math.round(SENIOR_DEDUCTION_PHASEOUT_RATE * 100)} cents per dollar of modified AGI above ${fmt(SENIOR_DEDUCTION_PHASEOUT_START_OTHER)} (${fmt(SENIOR_DEDUCTION_PHASEOUT_START_JOINT)} on a joint return). Married taxpayers must file jointly to claim it. This is separate from, and in addition to, the regular additional standard deduction for age 65+ under §63(f)(1), which TaxStat360 does not model.`} wide />
+                    <InfoTip text={`Two deductions turn on this box. (1) The regular additional standard deduction for age 65+ (IRC §63(f)(1)): ${fmt(getTable(taxYear)?.addlStdAged?.[['mfj','mfs','qss'].includes(filingStatus) ? 'married' : 'unmarried'] ?? 0)} per qualified person for ${taxYear}, added to the standard deduction (not available if you itemize; blindness is not asked). (2) For ${SENIOR_DEDUCTION_FIRST_YEAR}–${SENIOR_DEDUCTION_LAST_YEAR}, the One Big Beautiful Bill Act §70103 senior deduction (IRC §63(f)(5)): an additional ${fmt(SENIOR_DEDUCTION_AMOUNT)} per qualified individual with a Social Security number, whether or not you itemize, phased out at ${Math.round(SENIOR_DEDUCTION_PHASEOUT_RATE * 100)} cents per dollar of modified AGI above ${fmt(SENIOR_DEDUCTION_PHASEOUT_START_OTHER)} (${fmt(SENIOR_DEDUCTION_PHASEOUT_START_JOINT)} on a joint return); married taxpayers must file jointly to claim it, and it is added back for the alternative minimum tax.`} wide />
                   </div>
                 )}
                 {filingStatus === 'mfs' && _rentalPortfolio.hasRentalCards && (
