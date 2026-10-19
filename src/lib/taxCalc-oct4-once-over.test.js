@@ -160,16 +160,19 @@ describe('OCT-4 N-12a — OBBBA §70103 senior deduction (IRC §63(f)(5))', () =
     // QSS files an individual return → the $75,000 threshold (same reading as §170(p) here).
     expect(calcSeniorDeduction({ taxYear: 2026, status: 'qss', magi: 100000, age65Self: true }).deduction).toBe(4500)
   })
-  it('SPEC: engine — single 2026, W-2 $60,000, age 65+: taxable income $60,000 − 16,100 − 6,000 = $37,900; tax $4,300', () => {
+  it('SPEC: engine — single 2026, W-2 $60,000, age 65+: taxable income $60,000 − (16,100 + 2,050) − 6,000 = $35,850; tax $4,054', () => {
+    // OCT-19 M-7a: the §63(f)(1) aged additional standard deduction ($2,050 unmarried, 2026) now
+    // rides on the same age box — before Oct 19 this case was $37,900 / $4,300.
     const r = calcTaxReturn(base({ w2: 60000, age65Self: true }))
     expect(r.seniorDeduction).toBe(6000)
-    expect(r.taxableIncome).toBe(37900)
-    expect(r.fedTax).toBe(4300)   // 1,240 + 12% × (37,900 − 12,400)
+    expect(r.deduction).toBe(18150)
+    expect(r.taxableIncome).toBe(35850)
+    expect(r.fedTax).toBe(4054)   // 1,240 + 12% × (35,850 − 12,400)
   })
   it('SPEC: the senior deduction is allowed to itemizers too, and reduces the §199A 20%-of-taxable-income cap base', () => {
     const r = calcTaxReturn(base({ w2: 60000, age65Self: true, useItemized: true, itemizedAmt: 20000, saltAmount: 10000 }))
     expect(r.seniorDeduction).toBe(6000)
-    expect(r.taxableIncome).toBe(34000)
+    expect(r.taxableIncome).toBe(34000)   // itemized $20,000 > $18,150 aged standard deduction, so no §63(f)(1) amount
   })
   it('CHAR: a 2025 return applies it; the box is inert for 2024', () => {
     expect(calcTaxReturn(base({ taxYear: 2025, w2: 60000, age65Self: true })).seniorDeduction).toBe(6000)

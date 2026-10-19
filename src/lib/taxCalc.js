@@ -112,6 +112,7 @@ import { nf } from '../utils/money.js'
 const TAX_TABLES = {
   2024: {
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
+    addlStdAged: { married: 1550, unmarried: 1950 },   // §63(f)(1),(3) — Rev. Proc. 2023-34 (OCT-19 M-7a)
     sec179: { cap: 1220000, phaseOutStart: 3050000 },  // Rev. Proc. 2023-34 §3.26
     ssWageBase: 168600,
     brackets: {
@@ -155,6 +156,7 @@ const TAX_TABLES = {
   },
   2025: {
     std: { single: 15750, mfj: 31500, mfs: 15750, hoh: 23625, qss: 31500 },
+    addlStdAged: { married: 1600, unmarried: 2000 },   // §63(f)(1),(3) — Rev. Proc. 2024-40 (OCT-19 M-7a)
     sec179: { cap: 2500000, phaseOutStart: 4000000 },  // P.L. 119-21 (OBBBA) §70306 statutory reset
     ssWageBase: 176100,
     brackets: {
@@ -205,6 +207,7 @@ const TAX_TABLES = {
   // (HSA). Re-confirm against the IRS inflation Rev. Proc. each filing season.
   2026: {
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
+    addlStdAged: { married: 1650, unmarried: 2050 },   // §63(f)(1),(3) — Rev. Proc. 2025-32 (OCT-19 M-7a)
     sec179: { cap: 2560000, phaseOutStart: 4090000 },  // Rev. Proc. 2025-32 (§179(b)(6) indexing)
     ssWageBase: 184500,
     // AUDIT F-1 FIX (Jul 2026): prior values were pre-official projections that missed
@@ -596,7 +599,19 @@ function sumK1FlowThrough(entities) {
 function getTable(year) { return TAX_TABLES[year] || TAX_TABLES[CURRENT_TAX_YEAR] }
 /** §63(c) Standard deduction by filing status. Inflation-adjusted annually — IRC §1(f)(3).
  *  Values live in TAX_TABLES[year].std; includes OBBBA adjustments for 2026. */
-function getStdDed(year, fs) { const t = getTable(year).std; return t[fs] || t.single }
+// OCT-19 ENGINE REVIEW M-7a (Oct 2026): §63(f)(1)/(3) additional standard deduction for age.
+// `aged65Count` is the number of qualified individuals (the taxpayer, plus the spouse on a
+// joint return) who were 65 or older at year end; the per-person amount is the "married"
+// figure for MFJ/MFS/QSS and the "unmarried" figure for single/HOH. It does not phase out and
+// is separate from — and in addition to — the OBBBA §63(f)(5) senior deduction. Blindness is
+// not collected. Age inputs were added for the §63(f)(5) deduction (Oct 18) without this.
+function getStdDed(year, fs, aged65Count = 0) {
+  const tbl = getTable(year); const t = tbl.std; const base = t[fs] || t.single
+  const n = Math.max(0, Math.min(2, Math.floor(nf(aged65Count) || 0)))
+  if (n === 0 || !tbl.addlStdAged) return base
+  const married = fs === 'mfj' || fs === 'mfs' || fs === 'qss'
+  return base + n * (married ? tbl.addlStdAged.married : tbl.addlStdAged.unmarried)
+}
 function getBrackets(year, fs) { const t = getTable(year).brackets; return t[fs] || t.single }
 /** §1(h) LTCG/QD bracket thresholds by filing status. Inflation-adjusted — IRC §1(f)(3). */
 function getLTCGThresholds(year, fs) { const t = getTable(year).ltcg; return t[fs] || t.single }
@@ -755,7 +770,7 @@ function calcNIIT(nii, agi, year, fs) {
 /** §55 Alternative Minimum Tax (Form 6251). Two-rate: 26% up to bracket26_28, 28% above.
  *  Exemption and phase-out are inflation-adjusted annually — see TAX_TABLES[year].amt.
  *  §199A QBI deduction is NOT added back to AMTI per §199A(f)(2). */
-function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, unrecap1250 = 0, collectibles = 0, regularTax, status, taxYear, useItemized, itemized, stdDed, regularOrdinaryTaxable }) {
+function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv, unrecap1250 = 0, collectibles = 0, regularTax, status, taxYear, useItemized, itemized, stdDed, regularOrdinaryTaxable, seniorDeductionAddback = 0 }) {
   // NOTE: the §199A QBI deduction is intentionally NOT added back to AMTI — it is allowed
   // for AMT (§199A(f)(2)), so the same amount used for regular tax flows into AMTI unchanged.
   // (Callers may still pass a `qbi` field; it is intentionally not read here. Do not "fix"
@@ -767,7 +782,9 @@ function calcAMT({ taxableIncome, saltAmount, isoBargainElement, ltGain, qualDiv
   const saltAddback  = isItemizing ? Math.min(Math.max(0, saltAmount), saltCap) : 0
   const isoAddback   = Math.max(0, isoBargainElement || 0)
   const stdDedAddback = isItemizing ? 0 : Math.max(0, stdDed || 0)
-  const _amtiBase    = Math.max(0, taxableIncome) + stdDedAddback + saltAddback + isoAddback
+  // OCT-19 M-7b: §63(f)(5) senior deduction is added back whether or not the filer itemizes.
+  const seniorAddback = Math.max(0, seniorDeductionAddback || 0)
+  const _amtiBase    = Math.max(0, taxableIncome) + stdDedAddback + saltAddback + isoAddback + seniorAddback
   const _phaseoutStart = amtTable.phaseoutStart[status] ?? amtTable.phaseoutStart.single
   const _exemptionAmt  = amtTable.exemption[status]     ?? amtTable.exemption.single
   // SEVENTH PASS F-8 (16 Sep 2026): §55(d)(3), last sentence — a married-filing-separately
@@ -1774,10 +1791,15 @@ function calcTaxReturn(input) {
   // the entity's TOTAL W-2 wages reported on the §199A statement (all employees), which is
   // the right figure for the §199A(b)(2) wage limit and the wrong one here: read first, it
   // let a $60,000-salary shareholder of a $300,000-payroll company deduct a $70,000 premium
-  // in full. Fall back to the §199A figure only when no officer salary was entered at all.
+  // in full. OCT-19 ENGINE REVIEW M-3 (Oct 2026): the "fall back to the §199A figure when no
+  // officer salary was entered" tail has been REMOVED. With no officer W-2 the shareholder has
+  // no Medicare wages from the S-Corp, so the §162(l)(5)(A) cap and the §402(h)(2)(A) SEP
+  // cap are both $0 — a K-1-direct minority shareholder who typed the company's $300,000
+  // Box 17 Code V payroll and no officer salary was allowed a $30,000 premium and a $70,000
+  // SEP ($17,817 of tax understated). The same read feeds the per-entity QBI haircut below.
   const _scorpOfficerW2ForSEHI = entities.reduce((s, e) => {
     if (!e || !isSCorpEntity(e.type)) return s
-    return s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || nf(e.box17V_wages) || 0)
+    return s + (nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0)
   }, 0)
   // ── EIGHTH PASS F-2 / F-10 (18 Sep 2026, independent fresh-eyes audit) — SELF-EMPLOYED
   // RETIREMENT: TWO LEGS, TWO CAPS ─────────────────────────────────────────────────────
@@ -1965,7 +1987,11 @@ function calcTaxReturn(input) {
   let passiveK1AgiAdjustment        = 0
   const calc461l = (_rentalForEBL) => {
     // EIGHTH PASS F-1/F-2: the S-Corp's own premium / retirement deductions are business deductions.
-    const eblBiz     = adjustedK1Total - scorpEntityLevelDeductions + passiveK1AgiAdjustment + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
+    // OCT-19 ENGINE REVIEW M-5 (Oct 2026): §707(c) guaranteed payments are Schedule E Part II /
+    // Form 461 line 4 trade-or-business income of the partner; only employee wages are carved
+    // out of §461(l) (§461(l)(6)). Omitting them overstated the business loss (partnership
+    // −$300,000 with $150,000 of GP → a $44,000 EBL that does not exist, ≈$10.6k of tax).
+    const eblBiz     = adjustedK1Total - scorpEntityLevelDeductions + passiveK1AgiAdjustment + guaranteedPaymentsTotal + (nf(f4797Inc) + extra1231BizGain - eblBizCapGainExcluded) + _rentalForEBL
     const eblNetLoss = Math.max(0, -eblBiz)
     const ebl        = Math.max(0, eblNetLoss - eblThreshold)
     return { eblBiz, eblNetLoss, ebl }
@@ -2073,6 +2099,16 @@ function calcTaxReturn(input) {
   const repHoursTestPasses = repHoursProvided ? (_repReHrs > 750 && _repReHrs > _repTotHrs / 2) : null
   const repHoursTestFailed = repHoursProvided && repHoursTestPasses === false
   const repAggregationGatedOut = repHoursTestFailed && repAggregationOverride !== true
+  // OCT-19 ENGINE REVIEW H-1 (Oct 2026): the hours test is the §469(c)(7)(B) REP qualification
+  // ITSELF, not a condition on the aggregation election only. A taxpayer whose supplied hours
+  // fail it is not a real estate professional, so EVERY rental is per se passive under
+  // §469(c)(2) — material participation in a property cannot make it nonpassive. Before this
+  // fix the gate (`repAggregationGatedOut`) reached only the §1.469-9(g) branch; a property
+  // flagged materiallyParticipates was still treated as nonpassive (single, W-2 $300k, rental
+  // −$80,000, 400 of 2,000 hours → $80,000 deducted; correct: suspended, $26,430 of tax).
+  // `repQualified` is what every nonpassive test must read. The explicit override keeps its
+  // meaning (a deliberate, at-risk assertion that the test is met).
+  const repQualified = effectiveIsREP && !repAggregationGatedOut
   // ── F6: §469 rental treatment — §1.469-9(g) aggregation election ───────────
   // Default for ALL rentals is PASSIVE (§469(a)); a net loss is limited to the
   // §469(i) $25k active-participation allowance and otherwise suspended on Form 8582.
@@ -2165,7 +2201,18 @@ function calcTaxReturn(input) {
     // falls to the per-property/§469(i) handling below, so the loss is suspended rather
     // than auto-freed against other income.
     const aggregateNonpassive = effectiveIsREP && rentalAggregationElection === true && !repAggregationGatedOut
+    // OCT-19 ENGINE REVIEW L-a (Oct 2026): nonpassive (REP) rental net that is NOT attested as a
+    // §162 trade or business. §1411(c)(2)(A) excludes rental income from NII only when it is
+    // derived in a nonpassive trade or business; REP status plus material participation alone
+    // does not make a rental a §162 business (Reg. §1.1411-4(g)(7) gives a safe harbor only at
+    // >500 hours). The per-property `qbiEligible` flag is the app's trade-or-business /
+    // Rev. Proc. 2019-38 attestation, so a nonpassive rental WITHOUT it stays in NII.
+    let nonpassiveRentalNonTB = 0
     if (aggregateNonpassive) {
+      entities.forEach(e => {
+        if (!e || !isRealEstateEntity(e.type) || e.qbiEligible === true) return
+        nonpassiveRentalNonTB += getEntityK1Share(e) - nf(e.box11_12)
+      })
       // F-3: a prior-year unallowed loss from the (formerly passive) rental activity is
       // allowed against that activity once it is nonpassive (§469(f)(1)(A)).
       nonpassiveRentalNet = combinedRentalNet - priorPAL
@@ -2187,12 +2234,12 @@ function calcTaxReturn(input) {
         // single source of truth for comma-safety.
         const k1Gross = getEntityK1Share(e)
         const net = k1Gross - nf(e.box11_12)  // F-13: charitable (box12_13) excluded
-        if (effectiveIsREP && e.materiallyParticipates === true) np += net
+        if (repQualified && e.materiallyParticipates === true) { np += net; if (e.qbiEligible !== true) nonpassiveRentalNonTB += net }   // OCT-19 H-1 / L-a
         else pv += net
       })
       const step2Net = nf(rentalNet)
       if (step2Net !== 0) {
-        if (effectiveIsREP && step2RentalMaterialParticipation === true) np += step2Net
+        if (repQualified && step2RentalMaterialParticipation === true) np += step2Net   // OCT-19 H-1
         else pv += step2Net
       }
       nonpassiveRentalNet = np
@@ -2219,7 +2266,7 @@ function calcTaxReturn(input) {
     }
     palAdjustedRental     = nonpassiveRentalNet + passiveAllowed
     rentalForEBL          = nonpassiveRentalNet
-    rentalForNII          = Math.max(0, passiveAllowed - passiveK1LossAbsorbedByRental)
+    rentalForNII          = Math.max(0, passiveAllowed - passiveK1LossAbsorbedByRental + nonpassiveRentalNonTB)   // OCT-19 L-a
     rentalQbiContribution = nonpassiveRentalNet + Math.max(0, passiveAllowed)
   }
   // F-3: attribution of the pooled unallowed loss for reporting. palSuspendedRental is the
@@ -2304,7 +2351,11 @@ function calcTaxReturn(input) {
   // Deliberately NOT auto-added to itemizedAmt (the user may already have included
   // it there); income is simply no longer reduced by it.
   const k1CharitableTotal = entities.reduce((sum, e) => sum + (e ? Math.max(0, nf(e.box12_13)) : 0), 0)
-  const stdDed    = getStdDed(taxYear, status)
+  // OCT-19 M-7a: §63(f)(1) aged additional standard deduction — the taxpayer's own box counts
+  // on every status; the spouse's only on a joint return. MFS is entitled to it (unless the
+  // spouse itemizes — not modelled).
+  const aged65Count = (age65Self === true ? 1 : 0) + (String(status).toLowerCase() === 'mfj' && age65Spouse === true ? 1 : 0)
+  const stdDed    = getStdDed(taxYear, status, aged65Count)
   // EXT-1: sehiScorpWageGrossUp restores the S-corp SEHI wage inclusion to gross income —
   // see the definition above. Net AGI effect is zero only when the full premium is covered
   // by the officer wage base; otherwise the excess correctly increases AGI (see EXT-1
@@ -2341,7 +2392,21 @@ function calcTaxReturn(input) {
   const charFloorDisallowed = Math.min(charEntered, charFloor,
     Math.max(0, nf(itemizedAmt) - saltDisallowed))
   const itemized          = Math.max(0, nf(itemizedAmt) - saltDisallowed - charFloorDisallowed) + deductibleMedical
-  const effectivelyItemizing = useItemized && itemized > stdDed
+  // OCT-19 ENGINE REVIEW L-b (Oct 2026): for 2026+ the §68 2/37 limitation can shave an
+  // itemized total that only just clears the standard deduction to BELOW it; a filer may then
+  // take the standard deduction instead. The exact reduction is computed after §199A (below),
+  // so this is a provisional estimate on pre-QBI taxable income (QBI can only lower the prong,
+  // so this can only flip a true knife-edge case toward standard). Repro: single, W-2 $900k,
+  // itemized $16,500 → reduced to $15,608, below the $16,100 standard deduction.
+  const _prov68Reduction = (() => {
+    if (!(taxYear >= 2026 && useItemized && itemized > stdDed)) return 0
+    const _bks = getBrackets(taxYear, status)
+    const thresh37 = _bks[_bks.length - 2][0]
+    const _agiEst = grossIncomeBeforeNOL - adjustments
+    const _prong2 = Math.max(0, Math.max(0, _agiEst - itemized) + itemized - thresh37)
+    return _prong2 > 0 ? Math.round((2 / 37) * Math.min(itemized, _prong2)) : 0
+  })()
+  const effectivelyItemizing = useItemized && (itemized - _prov68Reduction) > stdDed
   const deduction         = effectivelyItemizing ? itemized : stdDed
   // AUDIT N-9b (Jul 2026): §170(p) — permanent charitable deduction for NON-itemizers,
   // tax years beginning after 12/31/2025: up to $1,000 ($2,000 "in the case of a joint
@@ -2530,7 +2595,7 @@ function calcTaxReturn(input) {
       const aggNonpassive = perPropertyRegimeActive && effectiveIsREP && rentalAggregationElection === true && !repAggregationGatedOut
       const items = reCards.map(e => {
         const net = getEntityK1Share(e) - nf(e.box11_12)
-        const nonpassive = effectiveIsREP && (!perPropertyRegimeActive || aggNonpassive || e.materiallyParticipates === true)
+        const nonpassive = repQualified && (!perPropertyRegimeActive || aggNonpassive || e.materiallyParticipates === true)   // OCT-19 H-1
         const lossBase = nonpassive ? 0 : Math.max(0, -net) + Math.max(0, nf(e.priorPAL) || 0)
         return { e, net, nonpassive, lossBase }
       })
@@ -2703,7 +2768,7 @@ function calcTaxReturn(input) {
   const qbiEligibleEntitiesForCalcAdj = qbiEligibleEntitiesForCalc.map(e => {
     if (!e) return e
     if (isSCorpEntity(e.type) && _scorpQbiHaircutTotal > 0 && _scorpOfficerW2ForSEHI > 0) {
-      const ownWage = nf(e.officerW2) || nf(e.pnl?.officerSalary) || nf(e.box17V_wages) || 0
+      const ownWage = nf(e.officerW2) || nf(e.pnl?.officerSalary) || 0   // OCT-19 M-3: officer wages only
       const haircut = _scorpQbiHaircutTotal * (ownWage / _scorpOfficerW2ForSEHI)
       return { ...e, qbiShareAdjusted: (getEntityK1Share(e) - nf(e.box11_12)) - haircut }
     }
@@ -2796,8 +2861,21 @@ function calcTaxReturn(input) {
   let _prefRoom = taxableAfterQBI + itemizedLimitReduction
   const _ltcgClamped         = Math.min(_netLTForPref, _prefRoom); _prefRoom -= _ltcgClamped
   const _qualDivClamped      = Math.min(Math.max(0, _qualDivEff), _prefRoom); _prefRoom -= _qualDivClamped
-  const _unrecap1250Clamped  = Math.min(unrec1250,              _ltcgClamped)
-  const _collectiblesClamped = Math.min(collectibles,          Math.max(0, _ltcgClamped - _unrecap1250Clamped))
+  // OCT-19 ENGINE REVIEW H-2 (Oct 2026): a net short-term capital loss and a §1212(b)
+  // long-term carryover reduce the 28% (collectibles) gain FIRST — §1(h)(4)(B)(ii)–(iii) —
+  // then unrecaptured §1250 gain — §1(h)(6)(A)(ii) — and only the remainder reduces the
+  // 0/15/20% adjusted net capital gain (Schedule D instructions: 28% Rate Gain Worksheet
+  // lines 4–5, Unrecaptured §1250 Gain Worksheet line 18). The clamps below used to carve
+  // the §1250 / collectibles slices out of whatever LT gain SURVIVED the netting, which left
+  // the high-rate slices intact and let the loss eat the 15% slice instead (single, W-2
+  // $300k, LTCG $100k incl. $40k §1250, STCL −$50k: $79,634 vs. $75,634 correct). The
+  // amount the LT pool lost to those two items is applied to the slices in statutory order
+  // before the clamps.
+  const _ltLossAbsorbed      = Math.max(0, (_ltGain + f4797PrefGain) - Math.max(0, _netLT))
+  const _collectiblesAfterLoss = Math.max(0, collectibles - _ltLossAbsorbed)
+  const _unrecapAfterLoss      = Math.max(0, unrec1250 - Math.max(0, _ltLossAbsorbed - collectibles))
+  const _unrecap1250Clamped  = Math.min(_unrecapAfterLoss,       _ltcgClamped)
+  const _collectiblesClamped = Math.min(_collectiblesAfterLoss,  Math.max(0, _ltcgClamped - _unrecap1250Clamped))
   const ordFedTax = calcFederalTax(ordinaryTaxableIncome, taxYear, status)
   const prefTax   = calcPreferentialTax(ordinaryTaxableIncome, {
     ltcg:         _ltcgClamped,
@@ -2893,9 +2971,14 @@ function calcTaxReturn(input) {
     // slices used on the regular-tax side (see _unrecap1250Clamped/_collectiblesClamped
     // above) so AMT taxes them at the correct flat 25%/28% rates instead of silently
     // defaulting to 0 inside calcAMT/calcPreferentialTax.
-    unrecap1250: unrec1250, collectibles,
+    // OCT-19 H-2: the slices after the §1(h)(4)(B)/(6)(A)(ii) loss ordering, same as regular tax.
+    unrecap1250: _unrecapAfterLoss, collectibles: _collectiblesAfterLoss,
     regularTax: fedTax, status, taxYear,
     useItemized, itemized, stdDed,
+    // OCT-19 M-7b: the OBBBA §63(f)(5) senior deduction is added back to AMTI — 2025 Form
+    // 6251 instructions, line 1a / §56(b)(5)(D): "treated as a personal exemption that is
+    // added back to alternative minimum taxable income".
+    seniorDeductionAddback: seniorDeduction,
   })
   // ── AUDIT H1 (second launch audit, Sep 2026): THE CTC CEILING WAS THE WRONG TAX ──
   //
@@ -3038,7 +3121,12 @@ function calcTaxReturn(input) {
   const priorYearAGIAmt     = Math.max(0, nf(priorYearAGI))
   const agiBoundary         = status === 'mfs' ? 75000 : 150000
   const priorYearMultiplier = priorYearAGIAmt > agiBoundary ? 1.10 : 1.00
-  const safeHarborCurrentYear = Math.round(totalTax * 0.90)
+  // OCT-19 ENGINE REVIEW M-4 (Oct 2026): §6654(f) measures the "tax" for the required annual
+  // payment net of the refundable credits (Form 2210 line 3) — the §24(d) additional child
+  // tax credit included — the same figure the §6654(e)(1) de minimis test below already uses.
+  // Measured gross, a self-employed parent (HOH, Sch C $60,000, two children: tax $8,478,
+  // ACTC $1,719, balance $6,759) was told to send $7,630 of estimates — more than the balance.
+  const safeHarborCurrentYear = Math.round(Math.max(0, totalTax - actc) * 0.90)
   // NINTH PASS N-7 (22 Sep 2026): §6654(e)(2) — no addition to tax for a year when the
   // preceding year's tax was ZERO (12-month year, U.S. citizen or resident). A typed $0 is
   // a prior-year figure of $0 (required annual payment $0), not a missing entry; the UI
