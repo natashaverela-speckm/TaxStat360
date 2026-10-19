@@ -145,11 +145,12 @@ describe('manifest — engine YTD lists (single-sourced, membership pinned)', ()
     expect(YTD_SCALE_ENGINE_FIELDS).toEqual([
       'w2', 'w2OwnForSE', 'w2Spouse', 'k1Total', 'rentalNet',   // OCT-4 L-2: w2Spouse is a flow
       'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
+      'unrecap1250', 'collectiblesGain', 'bizCapGain1231',   // OCT-19 M-6
       'f4797Inc', 'taxableSS', 'iraIncome',
       'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
       'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',
     ])
-    expect(YTD_SCALE_ENTITY_FIELDS).toEqual(['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions', 'guaranteedPayments'])
+    expect(YTD_SCALE_ENTITY_FIELDS).toEqual(['k1', 'netProfit', 'box12_13', 'box17V_wages', 'officerW2', 'distributions', 'guaranteedPayments'])   // OCT-19 L-c: box11_12 (§179) is a discrete election, not a flow
   })
 
   it('CHAR: deliberately-unscaled balances never leak into the flow list', () => {

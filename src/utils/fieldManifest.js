@@ -251,6 +251,7 @@ export function normalizeF1040Fields(rec = {}) {
 export const YTD_SCALE_ENGINE_FIELDS = [
   'w2', 'w2OwnForSE', 'w2Spouse', 'k1Total', 'rentalNet',   // R-2: w2OwnForSE is a slice of w2 — scales with it; OCT-4 L-2: w2Spouse is a flow
   'stGain', 'ltGain', 'intInc', 'divInc', 'qualDiv',
+  'unrecap1250', 'collectiblesGain', 'bizCapGain1231',   // OCT-19 M-6: slices of ltGain / f4797Inc must scale with their parent
   'f4797Inc', 'taxableSS', 'iraIncome',
   'selfEmpHealthIns', 'selfEmpHealthInsScorp', 'selfEmpHealthInsOther', 'hsaDeduction', 'studentLoanInt', 'selfEmpRetirement',
   'itemizedAmt', 'saltAmount', 'medicalExpenses', 'charitableContr',   // A4-2
@@ -263,4 +264,7 @@ export const YTD_SCALE_ENGINE_FIELDS = [
 // FOURTH READ (14 Sep 2026, review finding 5): §707(c) guaranteed payments are a FLOW (SE
 // income, and since R-1 part of the §469(i) MAGI) and were the one entity flow left
 // unscaled — a half-year GP entry was treated as the full year.
-export const YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box11_12', 'box12_13', 'box17V_wages', 'officerW2', 'distributions', 'guaranteedPayments']
+// OCT-19 ENGINE REVIEW L-c (Oct 2026): `box11_12` (separately-stated §179) is an election on specific
+// property placed in service — a discrete event, like isoBargainElement — not a ratable flow, so it is
+// no longer annualized (scaling it also inflated the placed-in-service proxy in calc179Limitation).
+export const YTD_SCALE_ENTITY_FIELDS = ['k1', 'netProfit', 'box12_13', 'box17V_wages', 'officerW2', 'distributions', 'guaranteedPayments']
