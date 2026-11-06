@@ -162,7 +162,7 @@ describe('entity return contracts', () => {
       const keys = ENTITY_RETURN_FIELDS[kind].map(f => f.key)
       expect(new Set(keys).size).toBe(keys.length)
       for (const f of ENTITY_RETURN_FIELDS[kind]) expect(f.key && f.group && f.kind && f.label && f.source).toBeTruthy()
-      expect(ENTITY_RETURN_KINDS[kind].profile).toMatch(/^tax-(1120s|1065)-review$/)
+      expect(ENTITY_RETURN_KINDS[kind].profile).toMatch(/^tax-(1120s|1065|1120)-review$/)
     }
   })
 
@@ -171,7 +171,7 @@ describe('entity return contracts', () => {
     expect(e.officerCompensation).toBe(80000)
     expect(e.homeOfficeOrAccountablePlan).toBe(true)
     expect(e.shareholderCount).toBe(0)
-    expect(() => normalizeEntityFields('1120', {})).toThrow()
+    expect(() => normalizeEntityFields('990', {})).toThrow()
   })
 
   it('detects the return type from the page-1 title, not from the K-1 inside a 1040', () => {
@@ -179,6 +179,8 @@ describe('entity return contracts', () => {
     expect(detectReturnType('Form 1120-S U.S. Income Tax Return for an S Corporation')).toBe('1120s')
     expect(detectReturnType('Form 1065 U.S. Return of Partnership Income')).toBe('1065')
     expect(detectReturnType('Form 1120S line 7 compensation of officers')).toBe('1120s')
+    expect(detectReturnType('Form 1120 U.S. Corporation Income Tax Return 2025')).toBe('1120')
+    expect(detectReturnType('Form 1120 line 12 compensation of officers')).toBe('1120')
     expect(detectReturnType('nothing here')).toBeNull()
   })
 
@@ -241,5 +243,25 @@ describe('memo with the entity return', () => {
     expect(c).toContain('entity-retirement')
     expect(c).not.toContain('entity-vehicle')
     expect(m.missingReturns).toEqual([])
+  })
+
+  it('a C-Corp return adds double-tax, fringe, accumulated-earnings and QSBS findings', () => {
+    const CCORP = { taxYear: 2025, grossReceipts: 650000, totalIncome: 650000, officerCompensation: 150000, salariesWages: 180000, rentsPaid: 36000,
+      depreciation: 12000, otherDeductions: 125000, totalDeductions: 530000, taxableIncome: 120000, totalTax: 25200, dividendsPaid: 60000,
+      retainedEarnings: 310000, totalAssets: 480000, vehicleOrTravel: 14000, homeOfficeOrAccountablePlan: false }
+    const m = buildPriorYearMemo({ taxYear: 2025, filingStatus: 'mfj', w2Wages: 150000 }, { entityReturns: [{ kind: '1120', fields: CCORP }] })
+    const by = (id) => (m.sections.find(s => s.id === id)?.findings || []).map(x => x.code)
+    expect(by('comp')).toEqual(expect.arrayContaining(['ccorp-comp', 'double-tax']))
+    const dt = m.sections.find(s => s.id === 'comp').findings.find(x => x.code === 'double-tax')
+    expect(dt.impact).toBe(12600)
+    expect(by('records')).toContain('accumulated-earnings')
+    expect(by('records')).not.toContain('ccorp-shareholder-loan')
+    expect(by('ordinary')).toEqual(expect.arrayContaining(['ccorp-fringe', 'entity-retirement', 'home-office']))
+    expect(by('ordinary')).not.toContain('entity-vehicle')
+    expect(m.sections.find(s => s.id === 'ordinary').findings.find(x => x.code === 'hire-children').conditions).toMatch(/fully subject to FICA/)
+    expect(by('more')).toContain('qsbs')
+    expect(m.sections.find(s => s.id === 'sec179').findings[0].detail).toMatch(/1120 shows \$12,000 of depreciation/)
+    expect(m.missingReturns).toEqual([])
+    expect(m.entityReturns).toEqual(['1120'])
   })
 })

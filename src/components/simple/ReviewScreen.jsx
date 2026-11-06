@@ -60,7 +60,7 @@ export function seedCurrentYearFromReview(fields, entityReturns = []) {
 
 const MAX_ENTITY_RETURNS = 3
 
-const KIND_LABEL = { '1040': 'Personal return (1040)', '1120s': ENTITY_RETURN_KINDS['1120s'].label, '1065': ENTITY_RETURN_KINDS['1065'].label }
+const KIND_LABEL = { '1040': 'Personal return (1040)', ...Object.fromEntries(Object.entries(ENTITY_RETURN_KINDS).map(([k, v]) => [k, v.label])) }
 
 /** Read one PDF in the browser, detect which return it is, mask SSNs, extract. */
 async function readOneReturn(file) {
@@ -112,7 +112,7 @@ function UploadStep({ onExtracted }) {
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Review last year's return</h1>
       <p style={{ fontSize: 14, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
-        Upload the PDF of last year's federal return. If you have an S-Corp or a partnership, add its return too (the 1120-S or 1065): officer pay, distributions and what the company already deducts live there, not on the 1040. We read the figures, show you every one to confirm, and then lay out what the returns left on the table.
+        Upload the PDF of last year's federal return. If you have an S-Corp, a partnership or a C-Corp, add its return too (the 1120-S, 1065 or 1120): officer pay, distributions and what the company already deducts live there, not on the 1040. We read the figures, show you every one to confirm, and then lay out what the returns left on the table.
       </p>
       <div style={{ background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 12, padding: 18, marginBottom: 14 }}>
         <input ref={inputRef} id="review-file" type="file" multiple accept="application/pdf,.pdf" disabled={busy} onChange={e => handle(e.target.files)} style={{ fontSize: 14 }} aria-label="Return PDFs" />

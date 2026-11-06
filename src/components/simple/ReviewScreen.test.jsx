@@ -11,6 +11,7 @@ vi.mock('../../lib/pdfTextGate.js', () => ({
     if (file.name.includes('image')) return { ok: false, code: 'IMAGE_ONLY_PDF', message: 'That PDF has no text layer.' }
     const title = file.name.includes('1120s') ? 'Form 1120-S U.S. Income Tax Return for an S Corporation'
       : file.name.includes('1065') ? 'Form 1065 U.S. Return of Partnership Income'
+      : file.name.includes('1120c') ? 'Form 1120 U.S. Corporation Income Tax Return'
       : file.name.includes('mystery') ? 'a statement with no form name'
       : 'Form 1040 U.S. Individual Income Tax Return'
     return { ok: true, text: title + ' ' + 'x'.repeat(100), alnum: 100, redactedCount: 2 }
@@ -31,7 +32,8 @@ vi.mock('../../lib/carryforwardExtractClient.js', () => ({
     ok: true,
     result: {
       ok: true, profile,
-      fields: profile === 'tax-1120s-review' ? FIELDS_1120S : profile === 'tax-1065-review' ? { taxYear: 2025, partnerCount: 2, guaranteedPayments: 60000, ordinaryBusinessIncome: 130000 } : FIELDS_1040,
+      fields: profile === 'tax-1120s-review' ? FIELDS_1120S : profile === 'tax-1065-review' ? { taxYear: 2025, partnerCount: 2, guaranteedPayments: 60000, ordinaryBusinessIncome: 130000 }
+        : profile === 'tax-1120-review' ? { taxYear: 2025, officerCompensation: 150000, taxableIncome: 120000, dividendsPaid: 60000, retainedEarnings: 310000, totalAssets: 480000 } : FIELDS_1040,
       confidence: profile === 'tax-1040-review' ? { k1ScorpOrdinary: 0.4, officerW2: 1 } : { distributions: 0.3 },
       evidence: { retained: false, deletedAfterProcessing: true },
     },
@@ -151,5 +153,18 @@ describe('ReviewScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/Add the personal return/)
     fireEvent.click(screen.getByLabelText('Remove mystery.pdf'))
     expect(screen.queryByText(/could not tell/)).toBeNull()
+  })
+
+  it('1040 + 1120: the C-Corp return is detected and the memo carries the double-tax finding', async () => {
+    mount()
+    fireEvent.change(document.getElementById('review-file'), { target: { files: [pdf(), pdf('fixture-tax-1120c-smoke.pdf')] } })
+    expect(await screen.findByText('C-Corp return (1120)', { exact: false })).toBeInTheDocument()
+    fireEvent.click(screen.getByText(/Check the figures \(1040 \+ 1120\)/))
+    expect(await screen.findByText("Here's what we read")).toBeInTheDocument()
+    expect(within(screen.getByLabelText('C-Corp return (1120)')).getByLabelText('Dividends paid to shareholders').value).toBe('60,000')
+    fireEvent.click(screen.getByText(/These are right/))
+    expect(await screen.findByText(/What 2025 left on the table/)).toBeInTheDocument()
+    expect(document.body.textContent).toMatch(/Dividends are taxed twice/)
+    expect(document.body.textContent).toMatch(/from the 1040 and the 1120\b/)
   })
 })
