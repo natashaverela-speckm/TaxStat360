@@ -95,7 +95,7 @@ export default function NumbersScreen() {
       const parts = [`Read from your P&L${n.period ? ` (${n.period})` : ''}: ${isRental ? 'rent' : 'income'} ${fmt(nf(n.revenue))}, spent ${fmt(nf(n.expenses))}`]
       if (has('officerSalary') && nf(n.officerSalary) > 0) parts.push(`your pay ${fmt(nf(n.officerSalary))}`)
       if (isRental && nf(n.depreciation) > 0) parts.push(`depreciation ${fmt(nf(n.depreciation))}`)
-      setPnl({ busy: false, msg: parts.join(', ') + '. Check them and fix anything that is off.' + (n.notes.length ? ' ' + n.notes.join(' ') : ''), kind: 'ok' })
+      setPnl({ busy: false, msg: parts.join(', ') + '.' + (n.notes.length ? ' ' + n.notes.join(' ') : ''), kind: 'ok' })
     } catch (e) {
       setPnl({ busy: false, msg: 'Could not read that PDF. Type the numbers instead.', kind: 'error' })
     }
@@ -115,6 +115,13 @@ export default function NumbersScreen() {
             <input id="sf-pnl" type="file" accept="application/pdf,.pdf" disabled={pnl.busy} onChange={e => onPnlFile(e.target.files && e.target.files[0])} aria-label="Upload your P&L (PDF)" style={{ fontSize: 13 }} />
             {pnl.busy && <div style={{ marginTop: 8, fontSize: 13, color: B, fontWeight: 600 }}>Reading…</div>}
             {pnl.msg && <div role={pnl.kind === 'error' ? 'alert' : 'status'} style={{ marginTop: 8, fontSize: 13, color: pnl.kind === 'error' ? R : SUCCESS_TEXT, lineHeight: 1.5 }}>{pnl.msg}</div>}
+            {pnl.kind === 'ok' && (
+              <div style={{ marginTop: 8, padding: '10px 12px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, fontSize: 13, color: '#9A3412', lineHeight: 1.5 }}>
+                <strong>Please check these numbers against your actual P&L.</strong> Reports from different software lay out their totals differently, and we only use what the PDF says. If a figure is wrong, fix it in the field below. If the numbers don't match your report and you can't see why, email{' '}
+                <a href="mailto:support@taxstat360.com?subject=P%26L%20upload%20read%20wrong" style={{ color: '#9A3412', fontWeight: 700 }}>support@taxstat360.com</a>{' '}
+                with the PDF attached and we'll sort it out.
+              </div>
+            )}
           </div>
 
           {has('revenue') && (

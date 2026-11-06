@@ -142,6 +142,8 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     const file = new File(['%PDF-1.4'], 'fixture-pnl-smoke.pdf', { type: 'application/pdf' })
     fireEvent.change(input, { target: { files: [file] } })
     expect(await screen.findByRole('status')).toHaveTextContent(/Read from your P&L.*income \$300,000, spent \$100,000, your pay \$80,000/)
+    expect(screen.getByText(/Please check these numbers against your actual P&L/)).toBeInTheDocument()
+    expect(screen.getByText('support@taxstat360.com').getAttribute('href')).toMatch(/^mailto:support@taxstat360\.com/)
     expect(screen.getByLabelText('What the business took in this year').value).toBe('300,000')
     expect(screen.getByLabelText('What you paid yourself on payroll (W-2)').value).toBe('80,000')
     // 186,120 total − 80,000 officer − 6,120 employer payroll tax on it = 100,000
