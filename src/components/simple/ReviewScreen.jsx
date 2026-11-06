@@ -225,7 +225,7 @@ function withEntityFigures(initial, entities) {
   const merged = mergeEntityReturns(normalizeReviewFields(initial), entities.map(e => ({ kind: e.kind, fields: e.fields })))
   const out = { ...initial }
   for (const k of ['officerW2', 'k1ScorpOrdinary', 'k1PartnershipOrdinary']) {
-    if (nf(initial[k]) !== merged[k]) out[k] = merged[k]
+    if (nf(initial[k]) !== merged[k]) out[k] = merged[k] === 0 ? '' : merged[k]
   }
   return out
 }
