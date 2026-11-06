@@ -39,6 +39,8 @@ describe('field contract', () => {
     expect(f.filingStatus).toBe('single')
     expect(f.shortTermRental).toBe(true)
     expect(f.dependents).toBe(2)
+    expect(normalizeReviewFields({ priorYearQBILoss: '-22,321', nolCarryforward: -5 }).priorYearQBILoss).toBe(22321)
+    expect(normalizeReviewFields({ nolCarryforward: -5 }).nolCarryforward).toBe(5)
     expect(f.taxYear).toBe(new Date().getFullYear() - 1 >= 2024 ? f.taxYear : f.taxYear)
   })
 
@@ -192,6 +194,9 @@ describe('entity return contracts', () => {
     const g = mergeEntityReturns(normalizeReviewFields({ officerW2: 80000, k1ScorpOrdinary: 1 }), [{ kind: '1120s', fields: SCORP_1120S }])
     expect(g.officerW2).toBe(80000)
     expect(g.k1ScorpOrdinary).toBe(1)
+    // the same number with the wrong sign (Schedule E column (i) prints losses unsigned) is corrected
+    const h = mergeEntityReturns(normalizeReviewFields({ k1ScorpOrdinary: 293589 }), [{ kind: '1120s', fields: { ...SCORP_1120S, ordinaryBusinessIncome: -293589 } }])
+    expect(h.k1ScorpOrdinary).toBe(-293589)
   })
 })
 
@@ -343,5 +348,18 @@ describe('real estate professional as filed', () => {
     expect(rc.detail).toMatch(/rides on the log/)
     expect(rc.link).toMatch(/repsrecord/)
     expect(m.scenarios.filed).toBe(m.scenarios.reps)
+  })
+
+  it('with the 1120-S showing a funded pension and a loss year, no SEP card and a loss-year comp finding', () => {
+    const SC = { taxYear: 2025, shareholderCount: 1, grossReceipts: 388733, totalIncome: 387549, officerCompensation: 287500, salariesWages: 0,
+      rentsPaid: 0, taxesAndLicenses: 15136, depreciation: 11328, pensionProfitSharing: 70000, otherDeductions: 128611, totalDeductions: 681138,
+      ordinaryBusinessIncome: -293589, shareholderHealthIns: 10876, distributions: 183482, totalAssets: 116626, vehicleOrTravel: 6776, homeOfficeOrAccountablePlan: false }
+    const m = buildPriorYearMemo(REP, { entityReturns: [{ kind: '1120s', fields: SC }] })
+    const more = m.sections.find(s => s.id === 'more')?.findings.map(x => x.title) || []
+    expect(more.filter(t => /^(SEP-IRA|Solo 401)/.test(t))).toEqual([])
+    const rc = m.sections.find(s => s.id === 'comp').findings.find(x => x.code === 'reasonable-comp')
+    expect(rc.title).toMatch(/while the company showed a loss/)
+    expect(rc.detail).not.toMatch(/100% of total/)
+    expect(m.sections.find(s => s.id === 'ordinary').findings.map(x => x.code)).not.toContain('entity-retirement')
   })
 })

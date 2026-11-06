@@ -80,12 +80,14 @@ export const TAX_1040_REVIEW_FIELDS = Object.freeze([
   { key: 'capLossCarryforwardST',      group: 'Carryforwards', kind: 'money', label: 'Short-term capital loss carried forward', source: 'Schedule D' },
   { key: 'capLossCarryforwardLT',      group: 'Carryforwards', kind: 'money', label: 'Long-term capital loss carried forward',  source: 'Schedule D' },
   { key: 'nolCarryforward',            group: 'Carryforwards', kind: 'money', label: 'Net operating loss carried forward',      source: 'Form 1040 Schedule 1 / NOL statement' },
-  { key: 'priorYearQBILoss',           group: 'Carryforwards', kind: 'money', label: 'Business-income-deduction loss carried forward', source: 'Form 8995 line 3' },
+  { key: 'priorYearQBILoss',           group: 'Carryforwards', kind: 'money', label: 'Business-income-deduction loss carried forward', source: 'Form 8995 line 16' },
 ])
 
 export const TAX_1040_REVIEW_FIELD_KEYS = Object.freeze(TAX_1040_REVIEW_FIELDS.map(f => f.key))
 
 /** Coerce an extract payload (strings, nulls, confidence map) into typed fields. */
+const CARRYFORWARD_MAGNITUDE_KEYS = ['priorPassiveLossCarryforward', 'capLossCarryforwardST', 'capLossCarryforwardLT', 'nolCarryforward', 'priorYearQBILoss']
+
 export function normalizeReviewFields(raw = {}) {
   const out = {}
   for (const f of TAX_1040_REVIEW_FIELDS) {
@@ -95,6 +97,9 @@ export function normalizeReviewFields(raw = {}) {
     else if (f.kind === 'bool') out[f.key] = v === true || v === 'true' || v === 1
     else if (f.kind === 'enum') out[f.key] = f.options.includes(String(v || '').toLowerCase()) ? String(v).toLowerCase() : f.options[0]
   }
+  // Carryforwards are magnitudes: a worksheet prints "QBI loss carryforward (22,321)"
+  // or "-22,321", and the engine takes the amount, not the sign.
+  for (const k of CARRYFORWARD_MAGNITUDE_KEYS) out[k] = Math.abs(nf(out[k]))
   if (!out.taxYear) out.taxYear = CURRENT_TAX_YEAR - 1
   return out
 }
@@ -234,13 +239,21 @@ export function mergeEntityReturns(f, entityReturns = []) {
     const e = scorp.fields || {}
     const share = 1 / Math.max(1, nf(e.shareholderCount) || 1)
     if (!nf(out.officerW2) && nf(e.officerCompensation) > 0) out.officerW2 = Math.round(nf(e.officerCompensation) * share)
-    if (!nf(out.k1ScorpOrdinary) && nf(e.ordinaryBusinessIncome) !== 0) out.k1ScorpOrdinary = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    // The 1120-S line 22 × the owner's share IS the K-1 box 1. The 1040 package often
+    // shows the figure only on Schedule E column (i), where a loss prints without a
+    // sign, so the entity return wins whenever the 1040 figure is blank or is the
+    // same number with the wrong sign. A different number is kept (a second S-Corp).
+    const k1FromEntity = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    const k1On1040 = nf(out.k1ScorpOrdinary)
+    if (k1FromEntity !== 0 && (!k1On1040 || Math.abs(Math.abs(k1On1040) - Math.abs(k1FromEntity)) <= 1)) out.k1ScorpOrdinary = k1FromEntity
     if (nf(out.officerW2) > nf(out.w2Wages)) out.w2Wages = nf(out.officerW2)
   }
   if (pship) {
     const e = pship.fields || {}
     const share = 1 / Math.max(1, nf(e.partnerCount) || 1)
-    if (!nf(out.k1PartnershipOrdinary) && nf(e.ordinaryBusinessIncome) !== 0) out.k1PartnershipOrdinary = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    const pk1FromEntity = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    const pk1On1040 = nf(out.k1PartnershipOrdinary)
+    if (pk1FromEntity !== 0 && (!pk1On1040 || Math.abs(Math.abs(pk1On1040) - Math.abs(pk1FromEntity)) <= 1)) out.k1PartnershipOrdinary = pk1FromEntity
   }
   return out
 }
@@ -675,7 +688,16 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
     const sal = S ? nf(S.officerCompensation) : nf(f.officerW2)
     const inc = S ? nf(S.ordinaryBusinessIncome) : nf(f.k1ScorpOrdinary)
     const rc = calcReasonableCompCore(sal, inc)
-    if (rc.applicable) {
+    if (S && inc <= 0 && sal > 0) {
+      // A loss year: the ratio test has no meaning. State what the return shows and
+      // the question it raises, without a number the engine cannot stand behind.
+      const dist = nf(S.distributions)
+      F.comp.push(finding('comp', 'reasonable-comp', 'Officer salary paid while the company showed a loss', {
+        basis: 'Rev. Rul. 74-44; Treas. Reg. §1.162-7; IRC §3121 (FICA wages)',
+        conditions: 'Reasonable compensation is a floor the IRS enforces against salaries set too low; there is no requirement to pay salary the company cannot fund from profit. Salary should still reflect the services performed and be documented.',
+        detail: `Per the 1120-S, officer salary was ${fmt(sal)} and the company showed a ${fmt(Math.abs(inc))} ordinary loss${dist > 0 ? `, with ${fmt(dist)} taken as distributions` : ''}. Payroll tax ran on the full salary. Whether the salary level, or its timing within the year, reflects the services and the company's ability to pay is worth a conversation with the tax pro.`,
+      }))
+    } else if (rc.applicable) {
       const tooHigh = rc.ratio > 0.7 && inc > 0
       const dist = S ? nf(S.distributions) : 0
       F.comp.push(finding('comp', 'reasonable-comp', rc.triggered ? 'Officer salary is low relative to S-Corp income' : tooHigh ? 'Officer salary is high relative to S-Corp income' : 'Officer salary is within the range practitioners cite', {
@@ -725,10 +747,13 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
   // 7. Everything else the engine already finds, from the prior-year record.
   const cards = buildOpportunities(rec)
   const covered = new Set(['Hire Your Children', 'Home Office Deduction', 'Augusta Rule — IRC §280A(g)', 'Bonus Depreciation', 'Track Your Real Estate Hours', '§179 Equipment Deduction'])
+  // The engine's SEP / Solo 401(k) cards are not repeated when the review already
+  // sized an employer plan, nor when the entity return shows one funded.
   const entityRetire = F.ordinary.some(x => x.code === 'entity-retirement')
+  const planFunded = (S && nf(S.pensionProfitSharing) > 0) || (P && nf(P.retirementPlans) > 0) || (C && nf(C.pensionProfitSharing) > 0)
   for (const c of cards.opportunities) {
     if (covered.has(c.title)) continue
-    if (entityRetire && /^(SEP-IRA|Solo 401\(k\))/.test(c.title)) continue
+    if ((entityRetire || planFunded) && /^(SEP-IRA|Solo 401\(k\))/.test(c.title)) continue
     F.more.push(finding('more', c.title, c.title, { impact: c.saving || null, detail: c.detail, conditions: c.howTo }))
   }
   if (hasSchedC && nf(f.schedCNet) > 40000) {

@@ -218,8 +218,20 @@ function SelfCheck({ recon }) {
   )
 }
 
+/** The 1040 figures the business return settles (officer W-2, K-1 share and sign)
+ *  are shown already corrected, so the table and the engine agree. */
+function withEntityFigures(initial, entities) {
+  if (!entities.length) return initial
+  const merged = mergeEntityReturns(normalizeReviewFields(initial), entities.map(e => ({ kind: e.kind, fields: e.fields })))
+  const out = { ...initial }
+  for (const k of ['officerW2', 'k1ScorpOrdinary', 'k1PartnershipOrdinary']) {
+    if (nf(initial[k]) !== merged[k]) out[k] = merged[k]
+  }
+  return out
+}
+
 function ConfirmStep({ initial, confidence, entities = [], onConfirm, onBack }) {
-  const [v, setV] = useState(() => initialValues(TAX_1040_REVIEW_FIELDS, initial))
+  const [v, setV] = useState(() => initialValues(TAX_1040_REVIEW_FIELDS, withEntityFigures(initial, entities)))
   const [ev, setEv] = useState(() => entities.map(e => initialValues(ENTITY_RETURN_FIELDS[e.kind], e.fields || {})))
   const [showAll, setShowAll] = useState(false)
   const set = (k) => (val) => setV(p => ({ ...p, [k]: val }))
