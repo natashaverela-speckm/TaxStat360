@@ -90,12 +90,53 @@ export async function extractPdfPages(data, deps = {}) {
   for (let i = 1; i <= pdf.numPages; i += 1) {
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
-    const line = (content.items || [])
-      .map((item) => (item && typeof item.str === 'string' ? item.str : ''))
-      .join(' ')
-    parts.push(line + checkedBoxesNote(await safeAnnotations(page)))
+    parts.push(itemsToRows(content.items || []) + checkedBoxesNote(await safeAnnotations(page)))
   }
   return parts
+}
+
+/**
+ * Rebuild a page as rows. Tax software draws every label first and every
+ * amount afterwards, so pdf.js's reading order is "label label label … amount
+ * amount amount" and a model matching them by position shifts every line.
+ * Grouping items by their y coordinate puts each amount beside its label
+ * ("7 Compensation of officers 7 287,500."), which is what the form looks like.
+ * Rows are emitted top to bottom, items left to right; a wide gap inside a row
+ * becomes a few spaces so columns stay readable.
+ * @param {Array<{str?: string, transform?: number[], width?: number, height?: number}>} items
+ */
+export function itemsToRows(items) {
+  const rows = []
+  const placed = []
+  for (const it of items) {
+    if (!it || typeof it.str !== 'string' || !it.str.trim()) continue
+    const t = Array.isArray(it.transform) && it.transform.length >= 6 ? it.transform : null
+    if (!t) { placed.push({ x: Infinity, y: NaN, w: 0, h: 0, s: it.str }); continue }
+    const h = Math.max(Math.abs(t[3]) || 0, Math.abs(it.height || 0), 1)
+    placed.push({ x: t[4], y: t[5], w: it.width || 0, h, s: it.str })
+  }
+  // Items with no geometry keep their original order at the end.
+  const loose = placed.filter(p => Number.isNaN(p.y))
+  const geo = placed.filter(p => !Number.isNaN(p.y)).sort((a, b) => b.y - a.y || a.x - b.x)
+  for (const p of geo) {
+    const last = rows[rows.length - 1]
+    // same row when the baselines are within ~45% of the taller item's height
+    if (last && Math.abs(last.y - p.y) <= Math.max(last.h, p.h) * 0.45) { last.items.push(p); continue }
+    rows.push({ y: p.y, h: p.h, items: [p] })
+  }
+  const lines = rows.map(r => {
+    r.items.sort((a, b) => a.x - b.x)
+    let out = ''
+    let endX = null
+    for (const p of r.items) {
+      if (endX !== null) out += (p.x - endX > Math.max(8, p.h * 1.5)) ? '   ' : ' '
+      out += p.s.trim()
+      endX = p.x + (p.w || p.s.length * p.h * 0.5)
+    }
+    return out
+  })
+  if (loose.length) lines.push(loose.map(p => p.s.trim()).join(' '))
+  return lines.join('\n')
 }
 
 async function safeAnnotations(page) {
@@ -133,7 +174,7 @@ export async function extractPdfTextLayer(data, deps = {}) {
 // spent; state-return pages are dropped when anything has to give.
 export const TEXT_BUDGET_CHARS = 260_000
 
-const FEDERAL_PAGE = /Form\s*1040\b|Schedule\s*(1|2|3|A|B|C|D|E|SE|K-1|K)\b|Form\s*(1120-?S?|1065|4562|8582|8995|2210|8829|7203|1125-E|8825|W-2|1099)\b|Individual Income Tax Return|Income Tax Return for an S Corporation|Return of Partnership Income|Corporation Income Tax Return|Depreciation and Amortization|Passive Activity Loss/i
+const FEDERAL_PAGE = /Carryover Worksheet|carryover to the \d{4} tax return|Form\s*1040\b|Schedule\s*(1|2|3|A|B|C|D|E|SE|K-1|K)\b|Form\s*(1120-?S?|1065|4562|8582|8995|2210|8829|7203|1125-E|8825|W-2|1099)\b|Individual Income Tax Return|Income Tax Return for an S Corporation|Return of Partnership Income|Corporation Income Tax Return|Depreciation and Amortization|Passive Activity Loss/i
 const STATE_PAGE = /Department of Revenue|Franchise Tax Board|Department of Taxation|Comptroller|State of [A-Z][a-z]+ |\b(IT-201|IT-203|540|D-400|MI-1040|PA-40|IL-1040|NJ-1040|CT-1040|MA Form 1|Form 500|Form 502|Form IT-40|Form 40|Form 104|Form 1A|Form M1)\b|Resident Income Tax Return|Nonresident|Part-Year Resident|State Income Tax Return|state return/i
 const NOISE_PAGE = /e-file|Electronic Filing|Form 8879|Form 8878|Client Copy|Filing Instructions|Transmittal|Engagement Letter|Invoice|Cover Sheet|Two-Year Comparison|Tax Summary|Comparison/i
 
