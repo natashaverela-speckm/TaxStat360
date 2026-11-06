@@ -93,9 +93,33 @@ export async function extractPdfPages(data, deps = {}) {
     const line = (content.items || [])
       .map((item) => (item && typeof item.str === 'string' ? item.str : ''))
       .join(' ')
-    parts.push(line)
+    parts.push(line + checkedBoxesNote(await safeAnnotations(page)))
   }
   return parts
+}
+
+async function safeAnnotations(page) {
+  try { return await page.getAnnotations() } catch { return [] }
+}
+
+/**
+ * Checkbox state is not part of a PDF's text layer: the model sees every label
+ * ("Single", "Head of household", …) whether or not its box is checked. On a
+ * fillable return the state lives in the form field, so the checked ones are
+ * written out as "[checked: <label>]" after the page text. The label comes from
+ * the field's tooltip (what IRS forms carry) or, failing that, its field name.
+ */
+export function checkedBoxesNote(annotations) {
+  const out = []
+  for (const a of annotations || []) {
+    if (!a || a.subtype !== 'Widget' || !a.checkBox) continue
+    const v = a.fieldValue
+    const on = v != null && v !== 'Off' && v !== '' && v !== false
+    if (!on) continue
+    const label = String(a.alternativeText || a.fieldName || '').replace(/\s+/g, ' ').trim()
+    if (label) out.push(`[checked: ${label.slice(0, 80)}]`)
+  }
+  return out.length ? ' ' + out.join(' ') : ''
 }
 
 export async function extractPdfTextLayer(data, deps = {}) {

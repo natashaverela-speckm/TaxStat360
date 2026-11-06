@@ -11,6 +11,7 @@ import {
   extractPdfTextLayer,
   selectReturnPages,
   scorePage,
+  checkedBoxesNote,
   TEXT_BUDGET_CHARS,
 } from './pdfTextGate.js'
 
@@ -200,6 +201,21 @@ describe('pdfTextGate (Phase 2)', () => {
         expect(res.dropped).toBeGreaterThan(0)
         expect(res.text).not.toMatch(/Franchise Tax Board/)
       }
+    })
+  })
+
+  describe('checkbox state from form fields', () => {
+    it('writes out only the checked boxes, by tooltip then field name, and ignores text fields', () => {
+      const note = checkedBoxesNote([
+        { subtype: 'Widget', checkBox: true, fieldValue: 'Off', alternativeText: 'Head of household' },
+        { subtype: 'Widget', checkBox: true, fieldValue: '1', alternativeText: 'Single' },
+        { subtype: 'Widget', checkBox: true, fieldValue: 'Yes', alternativeText: '', fieldName: 'topmostSubform[0].Page1[0].c1_5[0]' },
+        { subtype: 'Widget', checkBox: false, fieldValue: '15,750', alternativeText: 'Standard deduction' },
+        { subtype: 'Link' },
+        null,
+      ])
+      expect(note).toBe(' [checked: Single] [checked: topmostSubform[0].Page1[0].c1_5[0]]')
+      expect(checkedBoxesNote([])).toBe('')
     })
   })
 })
