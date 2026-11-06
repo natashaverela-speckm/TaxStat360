@@ -87,6 +87,26 @@ const SR_ONLY = {
   border: 0,
 }
 
+// PHASE 2 (Learn more, Nov 2026): long help text (the statutory explanations) no
+// longer lands on the user all at once. The bubble opens with the first sentence
+// and a "Learn more" control; the full text stays one click away, unchanged, and
+// is always in the accessibility tree via the sr-only description. Short text is
+// shown whole, exactly as before.
+export const LEAD_MAX_CHARS = 180
+
+/** First sentence of `text`, or a word-boundary cut, when the text is long. */
+export function leadOf(text, max = LEAD_MAX_CHARS) {
+  const s = String(text ?? '')
+  if (s.length <= max) return { lead: s, truncated: false }
+  const cuts = [s.indexOf('. '), s.indexOf(':\n'), s.indexOf('\n')].filter(i => i > 0 && i <= max)
+  if (cuts.length) {
+    const i = Math.min(...cuts)
+    return { lead: s.slice(0, i + (s[i] === '.' ? 1 : 0)).trimEnd(), truncated: true }
+  }
+  const sp = s.lastIndexOf(' ', max)
+  return { lead: s.slice(0, sp > 40 ? sp : max).trimEnd() + '\u2026', truncated: true }
+}
+
 /** True on touch-primary devices; guarded for jsdom/test environments. */
 function coarsePointer() {
   try {
@@ -104,7 +124,9 @@ export default function InfoTip({ text, wide, label }) {
   // 'hover' closes on mouseleave (with grace); 'pinned' (click/tap) persists
   // until Esc, a second activation, or an outside pointer-down.
   const [pinned, setPinned] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [pos, setPos] = useState(null)
+  const { lead, truncated } = leadOf(text)
   const triggerRef = useRef(null)
   const tooltipRef = useRef(null)
   const hideTimer = useRef(null)
@@ -123,6 +145,7 @@ export default function InfoTip({ text, wide, label }) {
   const close = useCallback(() => {
     setShow(false)
     setPinned(false)
+    setExpanded(false)
     if (hideTimer.current) {
       clearTimeout(hideTimer.current)
       hideTimer.current = null
@@ -157,7 +180,7 @@ export default function InfoTip({ text, wide, label }) {
     updatePosition()
     const id = requestAnimationFrame(updatePosition)
     return () => cancelAnimationFrame(id)
-  }, [show, text, wide, updatePosition])
+  }, [show, text, wide, expanded, updatePosition])
 
   useEffect(() => {
     if (!show) return
@@ -227,11 +250,25 @@ export default function InfoTip({ text, wide, label }) {
           textAlign: 'left',
           zIndex: TOOLTIP_Z,
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          pointerEvents: 'none',
+          // Learn more: the bubble must be hoverable/clickable; it keeps itself
+          // open while the pointer is inside and closes softly when it leaves.
+          pointerEvents: truncated ? 'auto' : 'none',
           visibility: pos ? 'visible' : 'hidden',
         }}
+        onMouseEnter={truncated ? open : undefined}
+        onMouseLeave={truncated ? closeSoft : undefined}
       >
-        {text}
+        {expanded || !truncated ? text : lead}
+        {truncated && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setPinned(true); setExpanded(v => !v) }}
+            aria-expanded={expanded}
+            style={{ display: 'block', marginTop: 8, background: 'none', border: 'none', padding: 0, color: '#93c5fd', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            {expanded ? 'Show less' : 'Learn more'}
+          </button>
+        )}
         <div
           style={{
             position: 'absolute',
