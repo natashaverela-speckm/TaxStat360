@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
 import { SIMPLE_TILES } from '../../lib/simpleFlow.js'
+import { PRIOR_YEAR_REVIEW_ENABLED } from '../../lib/priorYearReview.js'
 import { readEmail } from '../../utils/sessionState.js'
 import { markOnboardingTourComplete } from '../../utils/onboardingTour.js'
 import { NAVY as N, SLATE as SL, BLUE as B } from '../../lib/theme.js'
@@ -33,6 +34,19 @@ export default function StartScreen() {
           </button>
         ))}
       </div>
+      {PRIOR_YEAR_REVIEW_ENABLED && (
+        <button
+          role="listitem"
+          onClick={() => nav('/review')}
+          style={{ marginTop: 12, width: '100%', textAlign: 'left', background: N, color: '#fff', border: 'none', borderRadius: 12, padding: '18px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, minHeight: 72 }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 28, lineHeight: 1 }}>📄</span>
+          <span>
+            <span style={{ display: 'block', fontSize: 15, fontWeight: 700 }}>Review last year's return</span>
+            <span style={{ display: 'block', fontSize: 12, opacity: 0.8, marginTop: 2 }}>Upload the PDF. See what it left on the table, and start this year from those figures.</span>
+          </span>
+        </button>
+      )}
       <div style={{ marginTop: 22, fontSize: 13, color: SL }}>
         More than one of these, or something else?{' '}
         <button onClick={() => nav('/calculate-tax')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>Use the full form →</button>

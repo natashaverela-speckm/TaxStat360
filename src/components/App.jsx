@@ -39,6 +39,8 @@ import StartScreen from './simple/StartScreen.jsx'
 import NumbersScreen from './simple/NumbersScreen.jsx'
 import ResultScreen from './simple/ResultScreen.jsx'
 import { SIMPLE_FLOW_ENABLED, SIMPLE_ROUTES } from '../lib/simpleFlow.js'
+import ReviewScreen from './simple/ReviewScreen.jsx'
+import { PRIOR_YEAR_REVIEW_ENABLED } from '../lib/priorYearReview.js'
 // AUDIT B6 (Sep 2026): route allowlist for the Meta pixel. See complianceCopy.js.
 import { isPixelAllowedPath } from '../lib/complianceCopy.js'
 
@@ -478,6 +480,7 @@ const ROUTE_TITLES = {
   '/start':            'Get Started | TaxStat360',
   '/numbers':          'Your Numbers | TaxStat360',
   '/result':           'Your Result | TaxStat360',
+  '/review':           'Review Last Year | TaxStat360',
   '/calculate-tax':    'Tax Tracker | TaxStat360',
   '/calculator':       'Tax Tracker | TaxStat360',
   // AUDIT B2 (Sep 2026): "Personal Return" / /tax-return asserted return
@@ -503,7 +506,7 @@ const NOINDEX_PREFIXES  = [
   '/personal-estimate','/tax-return','/ai-analysis','/settings','/admin',
   '/onboarding','/upgrade','/integrations',
   '/carryforward-wizard',
-  '/start','/numbers','/result',   // PHASE 1 (simple flow): signed-in pages, never indexed
+  '/start','/numbers','/result','/review',   // simple flow + review: signed-in pages, never indexed
 ]
 
 function setNoindex(shouldNoindex) {
@@ -771,6 +774,8 @@ export default function App() {
         <Route path="/start"   element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <StartScreen />   : <Navigate to="/dashboard" replace />}</AuthedWithTour>} />
         <Route path="/numbers" element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <NumbersScreen /> : <Navigate to="/dashboard" replace />}</AuthedWithTour>} />
         <Route path="/result"  element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <ResultScreen />  : <Navigate to="/dashboard" replace />}</AuthedWithTour>} />
+        {/* PHASE 2: Prior-Year Review. Off (VITE_PRIOR_YEAR_REVIEW=true to enable) until the live extract is on. */}
+        <Route path="/review"  element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED && PRIOR_YEAR_REVIEW_ENABLED ? <ReviewScreen /> : <Navigate to="/start" replace />}</AuthedWithTour>} />
         <Route path="/tracker"       element={<Navigate to="/calculate-tax" replace />} />
         <Route path="/calculate-tax" element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />

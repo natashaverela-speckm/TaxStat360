@@ -56,3 +56,34 @@ export async function extractTax1040Carryforward(file) {
     }
   }
 }
+
+/**
+ * PHASE 2 (Prior-Year Review): the wider profile. Same endpoint, same gates, same
+ * delete-after-processing rule; the server returns the review field set plus a
+ * per-field confidence map.
+ * @param {File} file
+ * @returns {Promise<{ ok: true, result: { fields: object, confidence?: object, warnings?: string[], evidence?: object } } | { ok: false, error: string, code?: string }>}
+ */
+export async function extractTax1040Review(file) {
+  if (!file || !(file instanceof File)) {
+    return { ok: false, error: 'Choose a PDF of last year\u2019s return.' }
+  }
+  const fd = new FormData()
+  fd.append('profile', 'tax-1040-review')
+  fd.append('file', file, file.name || 'prior-year-1040.pdf')
+  try {
+    const body = await apiFetch('/extract/tax-1040-carryforward', { method: 'POST', body: fd, credentials: 'include' })
+    if (!body || body.ok === false) {
+      const detail = body && (body.detail || body.error || body.message)
+      return { ok: false, error: formatExtractError(detail) || 'Extract failed.', code: detail && typeof detail === 'object' ? detail.code : undefined }
+    }
+    if (body.evidence && body.evidence.retained === true) {
+      // HITL contract: a payload that claims the PDF was kept is refused outright.
+      return { ok: false, error: 'Extract refused \u2014 tax documents must not be retained. Enter the figures manually.', code: 'EVIDENCE_RETAINED' }
+    }
+    return { ok: true, result: body }
+  } catch (e) {
+    const detail = e && e.body && (e.body.detail || e.body.error || e.body.message)
+    return { ok: false, error: String(formatExtractError(detail) || (e && e.message) || 'Could not reach extract service.'), code: detail && typeof detail === 'object' ? detail.code : undefined }
+  }
+}

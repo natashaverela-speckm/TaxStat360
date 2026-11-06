@@ -36,7 +36,7 @@ export const SIMPLE_FLOW_ENABLED = (() => {
 
 /** Routes the simple flow owns. RequireWelcomeTour lets these through for a
  *  first-login user instead of bouncing to the tour. */
-export const SIMPLE_ROUTES = Object.freeze(['/start', '/numbers', '/result'])
+export const SIMPLE_ROUTES = Object.freeze(['/start', '/numbers', '/result', '/review'])
 
 /** Screen 1 tiles. `entityType` strings MUST match the Tax Tracker entity picker
  *  (same contract as Dashboard.PRESET_ENTITY_TYPE). `fields` drives Screen 2. */
