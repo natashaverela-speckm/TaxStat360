@@ -21,6 +21,7 @@ const FIELDS_1040 = {
   taxYear: 2025, filingStatus: 'mfj', dependents: 2, w2Wages: 180000, w2Withheld: 20000, officerW2: 80000,
   k1ScorpOrdinary: 113880, schedERent: 42000, schedEExpenses: 30000, schedEDepreciation: 28000, rentalBuildingBasis: 400000,
   depreciationTotal: 28000, qbiDeduction: 18500, agi: 262000, totalTax: 43199, estimatedPaymentsMade: 12000, underpaymentPenalty: 612, priorPassiveLossCarryforward: 9000,
+  capLossCarryforwardST: 1500, capLossCarryforwardLT: 7000, nolCarryforward: 12000, priorYearQBILoss: 3000,
 }
 const FIELDS_1120S = {
   taxYear: 2025, shareholderCount: 1, grossReceipts: 420000, totalIncome: 420000, officerCompensation: 80000, salariesWages: 96000,
@@ -44,6 +45,7 @@ import ReviewScreen from './ReviewScreen.jsx'
 import ResultScreen from './ResultScreen.jsx'
 import { readStep1State, readPersonalContext, readTaxYear } from '../../utils/sessionState.js'
 import { CURRENT_TAX_YEAR } from '../../lib/constants.js'
+import { nf } from '../../utils/money.js'
 
 function mount() {
   return render(
@@ -117,6 +119,12 @@ describe('ReviewScreen', () => {
     expect(pc.filingStatus).toBe('mfj')
     expect(pc.w2Income).toBe(100000)
     expect(pc.estPaid).toBe(0)        // last year's payments do not carry into this year
+    // the reviewed year's carryforwards become this year's opening balances
+    expect(pc.capLossCarryforwardST).toBe(1500)
+    expect(pc.capLossCarryforwardLT).toBe(7000)
+    expect(pc.nolCarryforward).toBe(12000)
+    expect(pc.priorYearQBILoss).toBe(3000)
+    expect(nf(s1.entities.find(e => e.type === 'Real Estate (Schedule E)').priorPAL)).toBe(9000)
     const hero = screen.getByText(/on track to owe about/i).closest('section')
     expect(within(hero).getAllByText(/^\$[\d,]+$/).length).toBeGreaterThan(0)
   })
