@@ -71,7 +71,7 @@ describe('M7 — the button cannot be clickable while the card is unmounted', ()
   it('THE ORIGINAL BUG: picking a plan before Stripe loads leaves a disabled button, not a dead one', async () => {
     // window.Stripe is absent, exactly as on a slow connection.
     renderUpgrade()
-    fireEvent.click(await screen.findByRole('button', { name: /Upgrade to Professional/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /Upgrade to Toolkit Pro/i }))
 
     // Whatever the user does now, they must never see an enabled control that does
     // nothing. Either the card block is not shown yet, or its button is disabled.
@@ -103,7 +103,7 @@ describe('M7 — the button cannot be clickable while the card is unmounted', ()
     window.Stripe = sdk
     script.dispatchEvent(new Event('load'))
 
-    fireEvent.click(await screen.findByRole('button', { name: /Upgrade to Professional/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /Upgrade to Toolkit Pro/i }))
 
     // FRESH-EYES F-17 (11 Sep 2026): the button now also gates on the auto-renewal
     // consent box (Cal. B&P §17602(a)(1)), mirroring Onboarding. Readiness alone is no

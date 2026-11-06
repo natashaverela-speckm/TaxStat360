@@ -5,7 +5,7 @@ import { signOut as sharedSignOut } from '../utils/SignOut'
 import { normalizePlanId, refreshPlanFromServer } from './LockedFeature'
 import BrandLogo from './BrandLogo'
 import { apiFetch } from '../utils/apiClient.js'
-import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, upgradeDisclosure } from '../lib/constants.js'
+import { FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, PLAN_DISPLAY_NAMES, ANNUAL_DISCOUNT_LABEL, upgradeDisclosure } from '../lib/constants.js'
 import { CANCEL_PATH } from '../lib/complianceCopy.js'
 import { NAVY as N, BLUE as B, SLATE as SL } from '../lib/theme.js'
 // AUDIT B2 (Sep 2026): canonical route + step label live in complianceCopy.js.
@@ -18,13 +18,10 @@ import { STRIPE_PORTAL_URL } from '../lib/constants.js'
 // Settings.jsx, and it is the product's only cancellation path — see the note there
 // about verifying that cancellation is actually enabled in the portal configuration.
 
+// SINGLE PLAN (Nov 2026): "starter" is the no-subscription state, "pro" the plan.
 const PLANS = {
-  // D-06: derived from PLAN_PRICING (constants.js) — single price source.
-  // NOTE (OBS-9): this page's "Save $X/yr" line computes (monthly−annual)×12,
-  // which differs from Landing's monthly×2 figure — preserved verbatim.
-  starter:      { label:'Starter',      price:{ monthly:PLAN_PRICING.starter.monthly,      annual:PLAN_PRICING.starter.annualMonthly      }, color:'#64748B' },
-  professional: { label:'Professional', price:{ monthly:PLAN_PRICING.professional.monthly, annual:PLAN_PRICING.professional.annualMonthly }, color:B,        popular:true },
-  enterprise:   { label:'Enterprise',   price:{ monthly:PLAN_PRICING.enterprise.monthly,   annual:PLAN_PRICING.enterprise.annualMonthly   }, color:N         },
+  starter: { label:PLAN_DISPLAY_NAMES.starter, price:{ monthly:0, annual:0 }, color:'#64748B' },
+  pro:     { label:PLAN_DISPLAY_NAMES.pro, price:{ monthly:PLAN_PRICING.pro.monthly, annual:PLAN_PRICING.pro.annualMonthly }, color:B, popular:true },
 }
 
 // FEAT-01 FIX: FEATURES table now mirrors Landing.jsx plan feature lists exactly.
@@ -34,28 +31,27 @@ const PLANS = {
 // Users on the upgrade page now see the same features advertised on the landing page.
 const FEATURES = [
   // ── Starter ──────────────────────────────────────────────────────────────
-  { label:'Year-round federal tax liability tracker',                   starter:true,  professional:true,  enterprise:true  },
-  { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',      starter:true,  professional:true,  enterprise:true  },
-  { label:'Schedule C (sole props & SMLLCs)',                           starter:true,  professional:true,  enterprise:true  },
-  { label:'Quarterly estimated payments',                               starter:true,  professional:true,  enterprise:true  },
+  { label:'Year-round federal tax liability tracker', starter:true, pro:true },
+  { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)', starter:true, pro:true },
+  { label:'Schedule C (sole props & SMLLCs)', starter:true, pro:true },
+  { label:'Quarterly estimated payments', starter:true, pro:true },
     // AUDIT B2 (Sep 2026): was 'Personal tax return (W-2 + entity income)'.
   // Must stay byte-identical to the Landing pricing card and comparison table.
-  { label:FEATURE_PERSONAL_ESTIMATE,                                    starter:true,  professional:true,  enterprise:true  },
-  { label:'1 accounting software integration',                          starter:true,  professional:false, enterprise:false },
+  { label:FEATURE_PERSONAL_ESTIMATE, starter:true, pro:true },
+  { label:'QuickBooks, Xero, Wave and FreshBooks sync',                   starter:false, pro:true },
   // ── Professional additions ────────────────────────────────────────────────
   // TERMINOLOGY FIX 5.1b: "Risk Alert Engine" did not match the in-app tab label "Audit Risk Scan."
   // A paying user landing in the app could not find the feature they purchased. Using the canonical
   // FEATURE_AUDIT_RISK_SCAN constant so this name stays in sync with AIAnalysis.jsx tab label.
-  { label:FEATURE_AUDIT_RISK_SCAN,                                          starter:false, professional:true,  enterprise:true  },
-  { label:FEATURE_WHATIF_SIMULATOR,                             starter:false, professional:true,  enterprise:true  },
-  { label:'One-Click CPA Export Pack',                                  starter:false, professional:true,  enterprise:true  },
-  { label:'Explainable AI: Why This Number?',                           starter:false, professional:true,  enterprise:true  },
-  { label:'Ask Aria — AI tax assistant',                                starter:false, professional:true,  enterprise:true  },
-  { label:'Unlimited accounting integrations',                          starter:false, professional:true,  enterprise:true  },
-  { label:'Priority support',                                           starter:false, professional:true,  enterprise:true  },
+  { label:FEATURE_AUDIT_RISK_SCAN, starter:false, pro:true },
+  { label:FEATURE_WHATIF_SIMULATOR, starter:false, pro:true },
+  { label:'One-Click CPA Export Pack', starter:false, pro:true },
+  { label:'Explainable AI: Why This Number?', starter:false, pro:true },
+  { label:'Ask Aria — AI tax assistant', starter:false, pro:true },
+    { label:'Priority support', starter:false, pro:true },
   // ── Enterprise additions ──────────────────────────────────────────────────
-  { label:'Multi-entity consolidated tax view',                         starter:false, professional:false, enterprise:true  },
-  { label:'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)', starter:false, professional:false, enterprise:true  },
+  { label:'Multi-entity consolidated tax view', starter:false, pro:true },
+  { label:'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)', starter:false, pro:true },
   // ── AUDIT H10 (second launch audit, Sep 2026): THREE FEATURES THAT DO NOT EXIST ──
   //
   // Removed from this table:
@@ -203,7 +199,7 @@ export default function Upgrade() {
     return () => { cancelled = true; window.clearTimeout(t) }
   }, [showCard, stripeLoaded])
 
-  const planOrder = ['starter','professional','enterprise']
+  const planOrder = ['starter','pro']
   const isUpgrade = (plan) => planOrder.indexOf(plan) > planOrder.indexOf(currentPlan)
   const isDowngrade = (plan) => planOrder.indexOf(plan) < planOrder.indexOf(currentPlan)
   const isPaid = currentPlan !== 'starter'
@@ -385,13 +381,13 @@ export default function Upgrade() {
               <div style={{width:18,height:18,background:'#fff',borderRadius:'50%',position:'absolute',top:3,left:billing==='annual'?23:3,transition:'left 0.2s'}}/>
             </div>
             <span style={{fontSize:14,color:billing==='annual'?N:SL,fontWeight:billing==='annual'?700:400}}>Annual</span>
-            <span style={{fontSize:12,background:'#DCFCE7',color:'#059669',padding:'3px 10px',borderRadius:20,fontWeight:700}}>Save 2 months</span>
+            <span style={{fontSize:12,background:'#DCFCE7',color:'#059669',padding:'3px 10px',borderRadius:20,fontWeight:700}}>{ANNUAL_DISCOUNT_LABEL}</span>
           </div>
         </div>
 
         {/* Plan cards */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:32}}>
-          {Object.entries(PLANS).map(([key, plan]) => {
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16,marginBottom:32,maxWidth:560,marginLeft:'auto',marginRight:'auto'}}>
+          {Object.entries(PLANS).filter(([key]) => key !== 'starter').map(([key, plan]) => {
             const isCurrent = key === currentPlan
             const canUpgrade = isUpgrade(key)
             const canDowngrade = isDowngrade(key)
@@ -447,20 +443,19 @@ export default function Upgrade() {
 
         {/* Feature comparison table */}
         <div style={{background:'#fff',border:'1px solid #E2E8F0',borderRadius:14,overflow:'hidden',marginBottom:32}}>
-          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',padding:'12px 20px',background:'#F8FAFC',borderBottom:'1px solid #E2E8F0'}}>
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',padding:'12px 20px',background:'#F8FAFC',borderBottom:'1px solid #E2E8F0'}}>
             <div style={{fontSize:12,fontWeight:700,color:SL,textTransform:'uppercase',letterSpacing:'0.06em'}}>Feature</div>
-            {['starter','professional','enterprise'].map(p=>(
+            {['starter','pro'].map(p=>(
               <div key={p} style={{textAlign:'center',fontSize:12,fontWeight:700,color:p===currentPlan?B:SL,textTransform:'uppercase',letterSpacing:'0.06em'}}>
                 {PLANS[p].label}{p===currentPlan?' ✓':''}
               </div>
             ))}
           </div>
           {FEATURES.map((f,i)=>(
-            <div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',padding:'11px 20px',borderBottom:i<FEATURES.length-1?'1px solid #F1F5F9':'none',background:i%2===0?'#fff':'#FAFAFA'}}>
+            <div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',padding:'11px 20px',borderBottom:i<FEATURES.length-1?'1px solid #F1F5F9':'none',background:i%2===0?'#fff':'#FAFAFA'}}>
               <div style={{fontSize:13,color:N}}>{f.label}</div>
               <div style={{textAlign:'center'}}><Check yes={f.starter}/></div>
-              <div style={{textAlign:'center'}}><Check yes={f.professional}/></div>
-              <div style={{textAlign:'center'}}><Check yes={f.enterprise}/></div>
+              <div style={{textAlign:'center'}}><Check yes={f.pro}/></div>
             </div>
           ))}
         </div>

@@ -79,7 +79,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 //   Export report and entity card". A "Business info" note in Settings is
 //   outside this file's scope but is called out in the comment below.
 
-import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, fmtPlanPrice, renewalDisclosure, TERMS_VERSION, PRIVACY_VERSION, LEGAL_CONSENT_PREFIX, LEGAL_CONSENT_JOINER, LEGAL_CONSENT_SUFFIX } from '../lib/constants.js'
+import { API_BASE_URL as API, ANNUAL_DISCOUNT_LABEL, PLAN_FEATURES, PLAN_PRICING, PLAN_DISPLAY_NAMES, fmtPlanPrice, renewalDisclosure, TERMS_VERSION, PRIVACY_VERSION, LEGAL_CONSENT_PREFIX, LEGAL_CONSENT_JOINER, LEGAL_CONSENT_SUFFIX } from '../lib/constants.js'
 import { SUCCESS_TEXT } from '../lib/theme.js'
 import { refreshPlanFromServer, normalizePlanId } from './LockedFeature.jsx'
 import { apiFetch } from '../utils/apiClient.js'
@@ -159,9 +159,11 @@ display: 'flex', alignItems: 'center', gap: 2,
 function SignupScreen(){
 const nav=useNavigate()
 const loc=useLocation()
-const planRaw=(new URLSearchParams(loc.search).get('plan')||'starter').toLowerCase()
+const planRaw=(new URLSearchParams(loc.search).get('plan')||'pro').toLowerCase()
 const billingRaw=(new URLSearchParams(loc.search).get('billing')||'monthly').toLowerCase()
-const [plan, setPlan] = useState(['starter','professional','enterprise'].includes(planRaw)?planRaw:'starter')
+// SINGLE PLAN (Nov 2026): there is one plan to pick; any legacy tier name in the URL resolves to it.
+const [plan, setPlan] = useState('pro')
+void planRaw
 const [billing, setBilling] = useState(billingRaw==='annual'?'annual':'monthly')
 const [name,setName]=useState('')
 const [email,setEmail]=useState('')
@@ -198,7 +200,7 @@ const cardRef=useRef(null) // DOM mount node (only present on step 2)
 const [stripeLoaded,setStripeLoaded]=useState(false)
 // D-06: derived from PLAN_PRICING (constants.js) — single price source.
 const MONTHLY_PRICES=Object.fromEntries(Object.entries(PLAN_PRICING).map(([k,v])=>[k,fmtPlanPrice(v.monthly)]))
-const ANNUAL_PRICES={starter:'$66',professional:'$124',enterprise:'$249'}
+const ANNUAL_PRICES=Object.fromEntries(Object.entries(PLAN_PRICING).map(([k,v])=>[k,fmtPlanPrice(v.annualMonthly)]))
 const planPrice=billing==='annual' ? ANNUAL_PRICES[plan] : MONTHLY_PRICES[plan]
 const planLabel=plan.charAt(0).toUpperCase()+plan.slice(1)+' '+planPrice+'/mo'+(billing==='annual' ? ' · Annual' : '')
 
@@ -469,9 +471,7 @@ Before you finish you will be asked to agree to our{' '}
 <div style={{display:'flex',flexDirection:'column',gap:8}}>
 {[
 // D-06: prices derived from PLAN_PRICING (constants.js) — single price source.
-{id:'starter',      name:'Starter',      price:`$${PLAN_PRICING.starter.monthly}/mo`,      annual:`$${PLAN_PRICING.starter.annualMonthly}/mo`},
-{id:'professional', name:'Professional', price:`$${PLAN_PRICING.professional.monthly}/mo`, annual:`$${PLAN_PRICING.professional.annualMonthly}/mo`},
-{id:'enterprise',   name:'Enterprise',   price:`$${PLAN_PRICING.enterprise.monthly}/mo`,   annual:`$${PLAN_PRICING.enterprise.annualMonthly}/mo`},
+{id:'pro', name:PLAN_DISPLAY_NAMES.pro, price:`$${PLAN_PRICING.pro.monthly}/mo`, annual:`$${PLAN_PRICING.pro.annualMonthly}/mo · $${PLAN_PRICING.pro.annualTotal}/yr`},
 ].map(p => {
 const selected = plan === p.id
 const features = PLAN_FEATURES?.[p.id] || ''
@@ -490,10 +490,6 @@ return (
   <div>
     <div style={{display:'flex',alignItems:'center',gap:8}}>
       <span style={{fontSize:13,fontWeight:700,color:selected?B:N}}>{p.name}</span>
-      {/* O6 FIX: 'Most popular' badge on Professional */}
-      {p.id==='professional' && (
-        <span style={{fontSize:10,fontWeight:700,background:B,color:'#fff',padding:'2px 7px',borderRadius:20}}>Most popular</span>
-      )}
     </div>
     {/* O6 FIX: feature summary line */}
     {features && (

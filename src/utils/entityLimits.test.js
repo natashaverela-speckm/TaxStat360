@@ -43,21 +43,16 @@ describe('entityLimits', () => {
     expect(canAddBusinessEntity([rental, rental, rental])).toBe(true)
   })
 
-  it('professional is unlimited under the single plan (PHASE 1b); the 3-entity cap only applies with the flag off', () => {
-    vi.mocked(getUserPlan).mockReturnValue('professional')
-    const twoBiz = [biz, { type: 'Partnership / LLC' }]
-    expect(canAddBusinessEntity(twoBiz)).toBe(true)
-    expect(canAddBusinessEntity([...twoBiz, { type: 'C Corporation' }])).toBe(true)
-    expect(canAddRealEstateEntity([...twoBiz, rental])).toBe(true)
-    // the table itself still records the legacy cap for the flag-off path
-    expect(PLAN_ENTITY_LIMITS.professional.business).toBe(3)
+  it('pro is unlimited (single plan, Nov 2026)', () => {
+    vi.mocked(getUserPlan).mockReturnValue('pro')
+    const many = Array.from({ length: 10 }, () => ({ ...biz }))
+    expect(entityLimitsForPlan('pro').business).toBe(Number.POSITIVE_INFINITY)
+    expect(canAddBusinessEntity(many)).toBe(true)
+    expect(canAddRealEstateEntity([...many, rental, rental, rental, rental])).toBe(true)
   })
 
-  it('enterprise is unlimited', () => {
+  it('a retired tier name falls back to the no-plan cap (only pro is a plan)', () => {
     vi.mocked(getUserPlan).mockReturnValue('enterprise')
-    const many = Array.from({ length: 10 }, () => ({ ...biz }))
-    expect(entityLimitsForPlan('enterprise').business).toBe(Number.POSITIVE_INFINITY)
-    expect(canAddBusinessEntity(many)).toBe(true)
-    expect(canAddRealEstateEntity(many)).toBe(true)
+    expect(entityLimitsForPlan('enterprise')).toEqual(PLAN_ENTITY_LIMITS.starter)
   })
 })

@@ -179,18 +179,19 @@ export const FINANCIAL_LABELS = {
 //
 // ⚠ Do NOT change the string VALUES — they must match what the Lambda writes.
 // Only rename the JavaScript identifiers (STARTER, PROFESSIONAL, ENTERPRISE) if needed.
+// SINGLE PLAN (Nov 2026): TaxStat360 sells ONE plan, "pro" (Toolkit Pro). "starter" is
+// not a product — it is the no-subscription state a new account starts in and a
+// cancelled one falls back to. The API (taxstat360-api PLAN_ORDER) uses the same two names.
 export const PLAN_IDS = {
-  STARTER: 'basic',       // Free-tier / Starter plan
-  PROFESSIONAL: 'pro',    // Professional plan ($149/mo)
-  ENTERPRISE: 'enterprise', // Enterprise plan ($299/mo)
+  STARTER: 'starter',   // no subscription
+  PRO: 'pro',           // the plan
 }
 
 // Human-readable display names keyed by the storage value.
-// Usage: PLAN_DISPLAY_NAMES[readPlan()] ?? 'Starter'
 export const PLAN_DISPLAY_NAMES = {
-  basic: 'Starter',
-  pro: 'Professional',
-  enterprise: 'Enterprise',
+  starter: 'No plan',
+  basic: 'No plan',
+  pro: 'Toolkit Pro',
 }
 
 // O6 FIX: One-line feature summary per plan — consumed by Onboarding.jsx SignupScreen
@@ -198,24 +199,15 @@ export const PLAN_DISPLAY_NAMES = {
 // Keep each string under ~60 characters (renders at 11px in a 150px-wide card column).
 // Update these whenever plan features change; they are display copy, not functional gates.
 export const PLAN_FEATURES = {
-  basic: '1 business + 3 rentals · core tax tracker · quarterly estimates',
-  starter: '1 business + 3 rentals · core tax tracker · quarterly estimates',
-  pro: '3 business entities · AI analysis · CPA Export tools',
-  professional: '3 business entities · AI analysis · CPA Export tools',
-  // AUDIT F-9 (Jul 2026): "multi-user" was advertised HERE and nowhere else in the
-  // product — no seats, no team management, nothing. A $299/mo customer who subscribed
-  // for team access had a clean refund claim and a bad first support ticket. Removed.
-  // If multi-user is ever built, put it back — and add it to the pricing table and the
-  // comparison grid in the same commit, so the three never drift again.
-  enterprise: 'Unlimited entities · consolidated multi-entity view · priority support',
+  // AUDIT F-9 (Jul 2026): never advertise multi-user / seats here — none exist.
+  pro: 'Unlimited businesses and rentals · savings analysis · Ask Aria · CPA export',
 }
 
 // Per-plan entity caps — business vs Schedule E rentals are counted separately.
 // Keys match LockedFeature.getUserPlan() (starter / professional / enterprise).
 export const PLAN_ENTITY_LIMITS = {
-  starter:      { business: 1, realEstate: 3 },
-  professional: { business: 3, realEstate: Number.POSITIVE_INFINITY },
-  enterprise:   { business: Number.POSITIVE_INFINITY, realEstate: Number.POSITIVE_INFINITY },
+  starter: { business: 1, realEstate: 3 },   // no subscription: enough to see a first estimate
+  pro:     { business: Number.POSITIVE_INFINITY, realEstate: Number.POSITIVE_INFINITY },
 }
 
 // ─── FICA — IRC §3101 / §3111 ─────────────────────────────────────────────────
@@ -716,27 +708,20 @@ export const INTEGRATIONS = [
 // A display-freeze test (src/planPricing.test.js) pins today's exact rendered
 // strings — it will fail loudly (on purpose) when a price changes, so a price
 // change is always a conscious, test-acknowledged act.
-export const PRICE_STARTER_MONTHLY = 79       // USD/month
-export const PRICE_PROFESSIONAL_MONTHLY = 149 // USD/month
-export const PRICE_ENTERPRISE_MONTHLY = 299   // USD/month
-export const ANNUAL_DISCOUNT_LABEL = 'Save 2 months'  // display copy — update if discount changes
+// SINGLE PLAN (Nov 2026): one plan, two prices. The annual price is a set figure, not
+// 10× monthly. These MUST match the Stripe prices the API sells (STRIPE_PRICE_PRO_*) and
+// the amounts the API's trial-confirmation email states (PRO_PRICE_MONTHLY / _ANNUAL).
+export const PRICE_PRO_MONTHLY = 39        // USD/month
+export const PRICE_PRO_ANNUAL_TOTAL = 399  // USD/year
+export const ANNUAL_DISCOUNT_LABEL = 'Save $' + (PRICE_PRO_MONTHLY * 12 - PRICE_PRO_ANNUAL_TOTAL) + '/yr'
 
-// Derived per-plan pricing (D-06 single source; see note above PRICE_*).
-// NOTE (OBS-9, KNOWN_LIMITATIONS.md): two different "annual savings" formulas
-// were ALREADY live before this change — Landing shows monthly×2 (two free
-// months: $158/$298/$598) while Upgrade computes (monthly−annualMonthly)×12
-// ($156/$300/$600, a rounding artifact of the ÷12). Both are preserved verbatim
-// here and at the sites; unifying is an owner display decision.
-const _plan = (monthly) => ({
-  monthly,
-  annualMonthly: Math.round(monthly * 10 / 12),   // 10 months billed, shown per-month
-  annualTotal:   monthly * 10,
-  annualSavings: monthly * 2,                      // Landing's formula (two free months)
-})
 export const PLAN_PRICING = {
-  starter:      _plan(PRICE_STARTER_MONTHLY),
-  professional: _plan(PRICE_PROFESSIONAL_MONTHLY),
-  enterprise:   _plan(PRICE_ENTERPRISE_MONTHLY),
+  pro: {
+    monthly:       PRICE_PRO_MONTHLY,
+    annualMonthly: Math.round(PRICE_PRO_ANNUAL_TOTAL / 12),        // shown per-month on the annual toggle
+    annualTotal:   PRICE_PRO_ANNUAL_TOTAL,
+    annualSavings: PRICE_PRO_MONTHLY * 12 - PRICE_PRO_ANNUAL_TOTAL, // one formula, every surface
+  },
 }
 export const fmtPlanPrice = (n) => '$' + n.toLocaleString('en-US')
 
@@ -766,10 +751,10 @@ export const trialEndLabel = (from = new Date()) =>
 
 /**
  * The affirmative auto-renewal sentence shown immediately above the card field.
- * plan: 'starter' | 'professional' | 'enterprise'   billing: 'monthly' | 'annual'
+ * plan: 'pro'   billing: 'monthly' | 'annual'
  */
 export function renewalDisclosure(plan, billing, from = new Date()) {
-  const p = PLAN_PRICING[plan] || PLAN_PRICING.starter
+  const p = PLAN_PRICING[plan] || PLAN_PRICING.pro
   const isAnnual = billing === 'annual'
   const amount = fmtPlanPrice(isAnnual ? p.annualTotal : p.monthly)
   const cadence = isAnnual ? 'every 12 months' : 'every month'
@@ -791,11 +776,11 @@ export function renewalDisclosure(plan, billing, from = new Date()) {
  * 'always_invoice') and the new price recurs from the next period.
  */
 export function upgradeDisclosure(plan, billing) {
-  const p = PLAN_PRICING[plan] || PLAN_PRICING.starter
+  const p = PLAN_PRICING[plan] || PLAN_PRICING.pro
   const isAnnual = billing === 'annual'
   const amount = fmtPlanPrice(isAnnual ? p.annualTotal : p.monthly)
   const cadence = isAnnual ? 'every 12 months' : 'every month'
-  const label = plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'selected'
+  const label = PLAN_DISPLAY_NAMES[plan] || 'selected'
   return 'You are changing your subscription to the ' + label + ' plan at ' + amount + ' ' + cadence +
     '. If your free trial is still running, the new price starts when it ends. Otherwise your card is charged ' +
     'a prorated amount today for the rest of your current billing period, and then ' + amount + ' ' + cadence +

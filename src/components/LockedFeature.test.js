@@ -30,10 +30,10 @@ describe('refreshPlanFromServer', () => {
   })
 
   it('writes plan from /auth/me on success', async () => {
-    vi.mocked(apiGet).mockResolvedValue({ plan: 'enterprise' })
+    vi.mocked(apiGet).mockResolvedValue({ plan: 'enterprise' })   // a retired tier name from the server
     const plan = await refreshPlanFromServer()
-    expect(writePlan).toHaveBeenCalledWith('enterprise')
-    expect(plan).toBe('professional')
+    expect(writePlan).toHaveBeenCalledWith('pro')                   // normalised to the one plan
+    expect(plan).toBe('pro')
   })
 
   it('clears session on 401 instead of trusting cached plan', async () => {
