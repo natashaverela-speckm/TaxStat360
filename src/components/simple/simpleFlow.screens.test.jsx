@@ -7,9 +7,27 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import StartScreen from './StartScreen.jsx'
 import NumbersScreen from './NumbersScreen.jsx'
 import ResultScreen from './ResultScreen.jsx'
-import { writeEmail, writePersonalContext, readPersonalContext, readStep1State } from '../../utils/sessionState.js'
+import { writeEmail, writePersonalContext, readPersonalContext, readStep1State, readUserRecords } from '../../utils/sessionState.js'
 import { hasCompletedOnboardingTour } from '../../utils/onboardingTour.js'
 import { PRIOR_YEAR_REVIEW_ENABLED } from '../../lib/priorYearReview.js'
+import { vi } from 'vitest'
+
+vi.mock('../../lib/pdfTextGate.js', () => ({
+  prepareTax1040TextForUpload: vi.fn(async (file) => ({ ok: true, text: 'Profit and Loss ' + file.name + ' x'.repeat(60), alnum: 100, redactedCount: 0 })),
+}))
+vi.mock('../../lib/carryforwardExtractClient.js', () => ({
+  extractTax1040ReviewText: vi.fn(async (_text, profile, fixture) => ({
+    ok: true,
+    result: { ok: true, profile, fields: fixture
+      ? { periodLabel: 'January 1 - October 31, 2026', periodYear: 2026, totalIncome: 300000, costOfGoodsSold: null, grossProfit: 300000, totalExpenses: 186120, officerCompensation: 80000, wagesOther: null, payrollTaxes: 6120, depreciation: null, rentExpense: 24000, interestExpense: null, netIncome: 113880 }
+      : { periodLabel: '', periodYear: 2026, totalIncome: null, totalExpenses: null, netIncome: 0 }, confidence: {}, evidence: { retained: false } },
+  })),
+}))
+vi.mock('../../utils/serverApi.js', () => ({
+  fetchRecordsFromServer: vi.fn(async () => []),
+  upsertRecordOnServer: vi.fn(async (r) => r),
+  deleteRecordOnServer: vi.fn(async () => ({})),
+}))
 
 function mountAt(path) {
   return render(
@@ -116,10 +134,24 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(screen.queryByText(/Use accounting software/)).toBeNull()
   })
 
-  it('accounting-software buttons hand off to the Advanced tracker', () => {
+  it('the P&L upload fills the fields and says what it read; the tracker is not linked', async () => {
     mountAt('/numbers?tile=scorp')
-    fireEvent.click(screen.getByText('QuickBooks'))
-    expect(screen.getByText('ADVANCED TRACKER')).toBeInTheDocument()
+    expect(screen.queryByText('QuickBooks')).toBeNull()
+    expect(screen.queryByText('Advanced')).toBeNull()
+    const input = screen.getByLabelText('Upload your P&L (PDF)')
+    const file = new File(['%PDF-1.4'], 'fixture-pnl-smoke.pdf', { type: 'application/pdf' })
+    fireEvent.change(input, { target: { files: [file] } })
+    expect(await screen.findByRole('status')).toHaveTextContent(/Read from your P&L.*income \$300,000, spent \$100,000, your pay \$80,000/)
+    expect(screen.getByLabelText('What the business took in this year').value).toBe('300,000')
+    expect(screen.getByLabelText('What you paid yourself on payroll (W-2)').value).toBe('80,000')
+    // 186,120 total − 80,000 officer − 6,120 employer payroll tax on it = 100,000
+    expect(screen.getByLabelText("What the business spent (not counting your own pay)").value).toBe('100,000')
+  })
+
+  it('a PDF that is not a P&L is refused with a plain message', async () => {
+    mountAt('/numbers?tile=soleprop')
+    fireEvent.change(screen.getByLabelText('Upload your P&L (PDF)'), { target: { files: [new File(['x'], 'balance-sheet.pdf', { type: 'application/pdf' })] } })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/does not read as a profit and loss report/)
   })
 
   it('Result with nothing entered offers Start instead of a blank number', () => {
@@ -148,9 +180,28 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(readPersonalContext().w2Withheld).toBeFalsy()
   })
 
-  it('Advanced is one click from every screen', () => {
+  it('the result screen edits payments, withholding, retirement and HSA in place and saves', async () => {
     mountAt('/start')
-    fireEvent.click(screen.getByText('Advanced'))
-    expect(screen.getByText('ADVANCED TRACKER')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('I run an S-Corp'))
+    fireEvent.change(screen.getByLabelText('What the business took in this year'), { target: { value: '300000' } })
+    fireEvent.change(screen.getByLabelText("What the business spent (not counting your own pay)"), { target: { value: '100000' } })
+    fireEvent.change(screen.getByLabelText('What you paid yourself on payroll (W-2)'), { target: { value: '80000' } })
+    fireEvent.click(screen.getByText('See my result →'))
+    const hero = screen.getByText(/on track to owe about/i).closest('section')
+    const before = within(hero).getAllByText(/^\$[\d,]+$/)[0].textContent
+    // no links out to the Advanced pages
+    expect(screen.queryByText(/Add another business or property/)).toBeNull()
+    expect(screen.queryByText(/Use the full form/)).toBeNull()
+    fireEvent.change(screen.getByLabelText("Estimated payments I've made this year"), { target: { value: '10000' } })
+    expect(readPersonalContext().estPaid).toBe(10000)
+    fireEvent.change(screen.getByLabelText('Retirement contributions deducted'), { target: { value: '20000' } })
+    expect(readPersonalContext().selfEmpRetirement).toBe(20000)
+    const after = within(screen.getByText(/on track to owe about/i).closest('section')).getAllByText(/^\$[\d,]+$/)[0].textContent
+    expect(after).not.toBe(before)
+    // save without leaving the screen
+    fireEvent.change(screen.getByLabelText('Record name'), { target: { value: 'My S-Corp 2026' } })
+    fireEvent.click(screen.getByText('Save this record'))
+    expect(await screen.findByText('Saved ✓')).toBeInTheDocument()
+    expect(readUserRecords().some(r => r.name === 'My S-Corp 2026' && r.totalTax > 0)).toBe(true)
   })
 })

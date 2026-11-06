@@ -3,10 +3,9 @@
 // One column, at most five visible fields, a live provisional estimate beside
 // them. Every field maps onto an input the engine already reads (see
 // buildEntityFromNumbers / writeSimpleFlowState in lib/simpleFlow.js). The only
-// blocking rule: revenue (or rent) > 0. Connect buttons for accounting software
-// sit above the fields and hand off to the existing Tax Tracker, where the
-// OAuth flows live; manual entry stays the default so the result is never
-// blocked on a third-party sign-in.
+// blocking rule: revenue (or rent) > 0. "Upload your P&L" sits above the fields:
+// the accounting-software export is read in the browser and the fields fill in;
+// manual entry stays the default so the result is never blocked on a file.
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
@@ -15,16 +14,12 @@ import {
   tileByKey, FIELD_COPY, FILING_STATUS_OPTIONS,
   previewFromNumbers, writeSimpleFlowState,
 } from '../../lib/simpleFlow.js'
-import { readTaxYear, writePresetEntityType } from '../../utils/sessionState.js'
+import { readTaxYear } from '../../utils/sessionState.js'
 import { fmt, nf } from '../../utils/money.js'
-import { NAVY as N, SLATE as SL, BLUE as B, RED as R } from '../../lib/theme.js'
-
-const INTEGRATIONS = [
-  { id: 'quickbooks', label: 'QuickBooks' },
-  { id: 'xero',       label: 'Xero' },
-  { id: 'wave',       label: 'Wave' },
-  { id: 'freshbooks', label: 'FreshBooks' },
-]
+import { NAVY as N, SLATE as SL, BLUE as B, RED as R, SUCCESS_TEXT } from '../../lib/theme.js'
+import { prepareTax1040TextForUpload } from '../../lib/pdfTextGate.js'
+import { extractTax1040ReviewText } from '../../lib/carryforwardExtractClient.js'
+import { PNL_PROFILE, looksLikePnl, pnlToNumbers, normalizePnl } from '../../lib/pnlUpload.js'
 
 const inputStyle = { width: '100%', padding: '12px 14px', border: '1px solid #CBD5E1', borderRadius: 10, fontSize: 16, color: N, background: '#fff', boxSizing: 'border-box' }
 
@@ -79,11 +74,31 @@ export default function NumbersScreen() {
     nav('/result')
   }
 
-  const connect = () => {
-    // The OAuth connect buttons live on the Tax Tracker; seed the entity type so it
-    // opens with the right card and the user lands straight on "Connect".
-    writePresetEntityType(tile.entityType)
-    nav('/calculate-tax')
+  // "Upload your P&L": the export from the member's accounting software, read in
+  // the browser like the tax return (text only, nothing stored), filled into the
+  // fields below for them to check. Replaces the connect buttons, which handed off
+  // to the Tax Tracker.
+  const [pnl, setPnl] = useState({ busy: false, msg: null, kind: null })
+  const onPnlFile = async (file) => {
+    if (!file) return
+    setPnl({ busy: true, msg: null, kind: null })
+    try {
+      const gate = await prepareTax1040TextForUpload(file)
+      if (!gate.ok) { setPnl({ busy: false, msg: gate.message, kind: 'error' }); return }
+      const res = await extractTax1040ReviewText(gate.text, PNL_PROFILE, /fixture-pnl-/i.test(file.name || '') ? file.name : null)
+      if (!res.ok) { setPnl({ busy: false, msg: res.error, kind: 'error' }); return }
+      const p = normalizePnl(res.result.fields || {})
+      if (!looksLikePnl(p)) { setPnl({ busy: false, msg: 'That PDF does not read as a profit and loss report. Export the P&L (not the balance sheet or a transaction list) and try again, or type the numbers.', kind: 'error' }); return }
+      const n = pnlToNumbers(p, tile.key, taxYear)
+      setV(prev => ({ ...prev, revenue: n.revenue, expenses: n.expenses, ...(has('officerSalary') ? { officerSalary: n.officerSalary } : {}), ...(isRental ? { depreciation: n.depreciation } : {}) }))
+      setTouched(false)
+      const parts = [`Read from your P&L${n.period ? ` (${n.period})` : ''}: ${isRental ? 'rent' : 'income'} ${fmt(nf(n.revenue))}, spent ${fmt(nf(n.expenses))}`]
+      if (has('officerSalary') && nf(n.officerSalary) > 0) parts.push(`your pay ${fmt(nf(n.officerSalary))}`)
+      if (isRental && nf(n.depreciation) > 0) parts.push(`depreciation ${fmt(nf(n.depreciation))}`)
+      setPnl({ busy: false, msg: parts.join(', ') + '. Check them and fix anything that is off.' + (n.notes.length ? ' ' + n.notes.join(' ') : ''), kind: 'ok' })
+    } catch (e) {
+      setPnl({ busy: false, msg: 'Could not read that PDF. Type the numbers instead.', kind: 'error' })
+    }
   }
 
   return (
@@ -94,16 +109,13 @@ export default function NumbersScreen() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(240px, 300px)', gap: 20, alignItems: 'start' }} className="simple-numbers-grid">
         <div>
-          {!isRental && (
-            <div style={{ background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 12, padding: '12px 14px', marginBottom: 18 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 8 }}>Use accounting software? Connect it and we'll fill these in.</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {INTEGRATIONS.map(i => (
-                  <button key={i.id} onClick={connect} style={{ padding: '8px 12px', border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', color: N, fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 40 }}>{i.label}</button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div style={{ background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 12, padding: '12px 14px', marginBottom: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>Use QuickBooks, Xero, Wave or FreshBooks? Upload the P&L and we fill these in.</div>
+            <div style={{ fontSize: 12, color: SL, marginBottom: 8, lineHeight: 1.5 }}>Export this year's Profit and Loss as a PDF and drop it here. It is read in your browser; only the totals are used and nothing is stored.</div>
+            <input id="sf-pnl" type="file" accept="application/pdf,.pdf" disabled={pnl.busy} onChange={e => onPnlFile(e.target.files && e.target.files[0])} aria-label="Upload your P&L (PDF)" style={{ fontSize: 13 }} />
+            {pnl.busy && <div style={{ marginTop: 8, fontSize: 13, color: B, fontWeight: 600 }}>Reading…</div>}
+            {pnl.msg && <div role={pnl.kind === 'error' ? 'alert' : 'status'} style={{ marginTop: 8, fontSize: 13, color: pnl.kind === 'error' ? R : SUCCESS_TEXT, lineHeight: 1.5 }}>{pnl.msg}</div>}
+          </div>
 
           {has('revenue') && (
             <Field id="sf-revenue" copy={FIELD_COPY.revenue}>

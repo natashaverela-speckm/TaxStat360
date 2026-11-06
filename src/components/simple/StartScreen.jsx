@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
 import { SIMPLE_TILES } from '../../lib/simpleFlow.js'
 import { PRIOR_YEAR_REVIEW_ENABLED } from '../../lib/priorYearReview.js'
+import { ADVANCED_HIDDEN } from '../../lib/pnlUpload.js'
 import { readEmail } from '../../utils/sessionState.js'
 import { markOnboardingTourComplete } from '../../utils/onboardingTour.js'
 import { NAVY as N, SLATE as SL, BLUE as B } from '../../lib/theme.js'
@@ -47,11 +48,13 @@ export default function StartScreen() {
           </span>
         </button>
       )}
-      <div style={{ marginTop: 22, fontSize: 13, color: SL }}>
-        More than one of these, or something else?{' '}
-        <button onClick={() => nav('/calculate-tax')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>Use the full form →</button>
-      </div>
-      <div style={{ marginTop: 8, fontSize: 13, color: SL }}>
+      {!ADVANCED_HIDDEN && (
+        <div style={{ marginTop: 22, fontSize: 13, color: SL }}>
+          More than one of these, or something else?{' '}
+          <button onClick={() => nav('/calculate-tax')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>Use the full form →</button>
+        </div>
+      )}
+      <div style={{ marginTop: ADVANCED_HIDDEN ? 22 : 8, fontSize: 13, color: SL }}>
         Saved something before?{' '}
         <button onClick={() => nav('/records')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>Open a saved record →</button>
       </div>
