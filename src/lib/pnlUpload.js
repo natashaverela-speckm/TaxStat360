@@ -5,7 +5,7 @@
 // stored), sent under the `pnl-summary` extract profile, and turned into the
 // Numbers-screen inputs the engine already takes. Keys mirror PNL_FIELDS in
 // app/tax_extract.py on the API. Pure; no DOM, no storage.
-import { nf } from '../utils/money.js'
+import { nf, fmt } from '../utils/money.js'
 import { calcEmployerFICA } from './taxCalc.js'
 import { tileByKey } from './simpleFlow.js'
 import { CURRENT_TAX_YEAR } from './constants.js'
@@ -15,8 +15,37 @@ export const ADVANCED_HIDDEN = String(import.meta.env?.VITE_ADVANCED_HIDDEN ?? '
 
 export const PNL_FIELD_KEYS = Object.freeze([
   'periodLabel', 'periodYear', 'totalIncome', 'costOfGoodsSold', 'grossProfit', 'totalExpenses',
-  'officerCompensation', 'wagesOther', 'payrollTaxes', 'depreciation', 'rentExpense', 'interestExpense', 'netIncome',
+  'officerCompensation', 'wagesOther', 'payrollTaxes', 'depreciation', 'rentExpense', 'interestExpense',
+  'otherIncome', 'otherExpenses', 'netOperatingIncome', 'netIncome',
 ])
+
+/**
+ * The whole year's money in and out, across every section of the report.
+ * QuickBooks (and Xero) put "Other Income" and "Other Expenses" below Net
+ * Operating Income; they are still income and spending. The final Net Income
+ * line is the cross-check: if income − spending does not land on it, the
+ * report has a section we did not read, and the spending figure is set so the
+ * totals tie to the report rather than to our reading of it.
+ */
+export function pnlTotals(pIn) {
+  const p = normalizePnl(pIn)
+  const income = Math.max(0, nf(p.totalIncome)) + Math.max(0, nf(p.otherIncome))
+  let spending = Math.max(0, nf(p.totalExpenses)) + Math.max(0, nf(p.costOfGoodsSold)) + Math.max(0, nf(p.otherExpenses))
+  const notes = []
+  const net = nf(p.netIncome)
+  let tied = true
+  if (net !== 0 || income > 0) {
+    const gap = (income - spending) - net
+    if (Math.abs(gap) > Math.max(50, income * 0.01)) {
+      tied = false
+      if (net !== 0 || spending > 0) {
+        spending = Math.max(0, income - net)
+        notes.push(`The report's sections did not add up to its Net Income line, so spending was set to make them tie (${fmt(income)} in, ${fmt(spending)} out, net ${fmt(net)}). Check it against the report.`)
+      }
+    }
+  }
+  return { income, spending, net, tied, notes }
+}
 
 /** Coerce the extract payload: money → numbers (null → 0), period label → string. */
 export function normalizePnl(raw = {}) {
@@ -51,16 +80,15 @@ export function pnlToNumbers(pIn, tileKey, taxYear = CURRENT_TAX_YEAR) {
   const tile = tileByKey(tileKey) || tileByKey('scorp')
   const isRental = tile.fields.includes('rent')
   const isSCorp = tile.key === 'scorp'
-  const notes = []
-  const income = Math.max(0, nf(p.totalIncome))
-  const cogs = Math.max(0, nf(p.costOfGoodsSold))
-  const total = Math.max(0, nf(p.totalExpenses))
+  const totals = pnlTotals(p)
+  const notes = [...totals.notes]
+  const income = totals.income
   const dep = Math.max(0, nf(p.depreciation))
 
   if (isRental) {
     return {
       revenue: String(Math.round(income)),
-      expenses: String(Math.round(Math.max(0, total + cogs - dep))),
+      expenses: String(Math.round(Math.max(0, totals.spending - dep))),
       officerSalary: '',
       depreciation: dep ? String(Math.round(dep)) : '',
       period: p.periodLabel,
@@ -74,7 +102,7 @@ export function pnlToNumbers(pIn, tileKey, taxYear = CURRENT_TAX_YEAR) {
   // recomputes it from the salary field, so take it out to avoid counting it twice.
   const officerFica = officer ? Math.min(Math.max(0, nf(p.payrollTaxes)), calcEmployerFICA(officer, taxYear)) : 0
   if (!isSCorp && nf(p.officerCompensation) > 0) notes.push('The P&L shows an owner-salary line; for this business type it stays inside expenses.')
-  const expenses = Math.max(0, total + cogs - officer - officerFica)
+  const expenses = Math.max(0, totals.spending - officer - officerFica)
   return {
     revenue: String(Math.round(income)),
     expenses: String(Math.round(expenses)),
