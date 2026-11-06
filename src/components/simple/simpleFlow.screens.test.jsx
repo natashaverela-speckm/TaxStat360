@@ -9,6 +9,7 @@ import NumbersScreen from './NumbersScreen.jsx'
 import ResultScreen from './ResultScreen.jsx'
 import { writeEmail } from '../../utils/sessionState.js'
 import { hasCompletedOnboardingTour } from '../../utils/onboardingTour.js'
+import { PRIOR_YEAR_REVIEW_ENABLED } from '../../lib/priorYearReview.js'
 
 function mountAt(path) {
   return render(
@@ -39,7 +40,8 @@ describe('Screen 1 — Start', () => {
     mountAt('/start')
     expect(screen.getByText('Which one is you?')).toBeInTheDocument()
     const tiles = screen.getAllByRole('listitem')
-    expect(tiles).toHaveLength(5)
+    // five persona tiles, plus the "Review last year's return" tile when that flag is on
+    expect(tiles).toHaveLength(PRIOR_YEAR_REVIEW_ENABLED ? 6 : 5)
     expect(hasCompletedOnboardingTour('tester@example.com')).toBe(true)
     expect(document.body.textContent).not.toMatch(BANNED)
   })
