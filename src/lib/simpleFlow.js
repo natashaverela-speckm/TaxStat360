@@ -116,7 +116,11 @@ export function buildEntityFromNumbers({ tile, revenue = 0, expenses = 0, office
     box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
     box17V_sstb: false,
     stockBasis: '', debtBasis: '', distributions: '',
-    isREP: false, isActiveParticipant: false,
+    // "I own rental property" is a landlord who approves tenants and sets terms,
+    // which is all §469(i) active participation asks; the $25,000 allowance (and
+    // its AGI phase-out) is the normal case for a small landlord, so the simple
+    // tile starts there. REPS stays off until claimed on the Advanced page.
+    isREP: false, isActiveParticipant: isRealEstateEntity(t.entityType),
     priorPAL: '',
     simpleFlowTile: t.key,
   }

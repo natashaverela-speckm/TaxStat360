@@ -132,4 +132,11 @@ describe('sortCardsBySaving', () => {
     ]
     expect(sortCardsBySaving(cards).map(c => c.title)).toEqual(['c', 'b', 'e', 'a', 'd'])
   })
+
+  it('the rental tile starts as an active participant (§469(i) allowance), never as a REP', () => {
+    const e = buildEntityFromNumbers({ tile: 'rental', revenue: 42000, expenses: 30000, depreciation: 28000 })
+    expect(e.isActiveParticipant).toBe(true)
+    expect(e.isREP).toBe(false)
+    expect(buildEntityFromNumbers({ tile: 'scorp', revenue: 1 }).isActiveParticipant).toBe(false)
+  })
 })
