@@ -98,6 +98,19 @@ function OAuthCallback() {
 // isValidSession() moved verbatim to utils/sessionAuth.js — the single
 // definition of session validity, now shared with Onboarding.
 
+// ─── Scroll reset on route change ──────────────────────────────────────────────
+// react-router keeps the window's scroll position across in-app navigation, so a
+// member who finished a long screen opened the next one at the bottom. A hash or
+// ?section= deep link is left alone (the target page scrolls to the section itself).
+function ScrollToTopOnRoute() {
+  const { pathname, search, hash } = useLocation()
+  useEffect(() => {
+    if (hash || /[?&]section=/.test(search)) return
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) } catch { /* jsdom */ }
+  }, [pathname, search, hash])
+  return null
+}
+
 // ─── Authenticated Footer ─────────────────────────────────────────────────────
 function AuthFooter() {
   const year = new Date().getFullYear()
@@ -324,6 +337,7 @@ function RequireAuth({ children }) {
         verified={verifyState.verified}
         onEmailUpdated={(next) => setVerifyState({ email: next, verified: false })}
       />
+      <ScrollToTopOnRoute />
       {children}
       <AuthFooter />
     </ErrorBoundary>

@@ -12,7 +12,7 @@
 // Language: opportunity analysis. Never "the return was wrong", never an amended
 // figure, never anything addressed to the IRS. The file is never stored here: the
 // API deletes it after processing and this component keeps only the numbers.
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
 import MoneyInput from '../MoneyInput.jsx'
@@ -225,7 +225,7 @@ function withEntityFigures(initial, entities) {
   const merged = mergeEntityReturns(normalizeReviewFields(initial), entities.map(e => ({ kind: e.kind, fields: e.fields })))
   const out = { ...initial }
   for (const k of ['officerW2', 'k1ScorpOrdinary', 'k1PartnershipOrdinary']) {
-    if (nf(initial[k]) !== merged[k]) out[k] = merged[k]
+    if (nf(initial[k]) !== merged[k]) out[k] = merged[k] === 0 ? '' : merged[k]
   }
   return out
 }
@@ -352,6 +352,9 @@ function MemoStep({ fields, entityReturns = [], onBack, onNext }) {
 export default function ReviewScreen() {
   const nav = useNavigate()
   const [stage, setStage] = useState('upload')
+  // Each step opens at the top: the confirm table is long, and the memo's headline
+  // belongs at the top of the screen, not wherever the last scroll left it.
+  useEffect(() => { try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }) } catch { /* jsdom */ } }, [stage])
   const [extracted, setExtracted] = useState(null)   // { individual: {fields, confidence}, entities: [{kind, name, fields, confidence}] }
   const [fields, setFields] = useState(null)
   const [entityReturns, setEntityReturns] = useState([])

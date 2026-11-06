@@ -250,6 +250,10 @@ export function mergeEntityReturns(f, entityReturns = []) {
     if (k1FromEntity !== 0 && (!k1On1040 || Math.abs(Math.abs(k1On1040) - Math.abs(k1FromEntity)) <= 1)) out.k1ScorpOrdinary = k1FromEntity
     if (nf(out.officerW2) > nf(out.w2Wages)) out.w2Wages = nf(out.officerW2)
   }
+  // The extractor sometimes copies the one K-1 figure into both K-1 lines. With the
+  // 1120-S in hand and no 1065, an identical figure on the partnership line is that copy.
+  if (scorp && !pship && nf(out.k1PartnershipOrdinary) !== 0 && nf(out.k1PartnershipOrdinary) === nf(out.k1ScorpOrdinary)) out.k1PartnershipOrdinary = 0
+  if (pship && !scorp && nf(out.k1ScorpOrdinary) !== 0 && nf(out.k1ScorpOrdinary) === nf(out.k1PartnershipOrdinary)) out.k1ScorpOrdinary = 0
   if (pship) {
     const e = pship.fields || {}
     const share = 1 / Math.max(1, nf(e.partnerCount) || 1)
@@ -408,7 +412,7 @@ export function reconcileReview(fieldsIn, entityReturns = []) {
   const hints = []
   if (!agi.ok) {
     const dir = agi.computed > agi.filed ? 'higher' : 'lower'
-    hints.push(`Income comes out ${dir} than the return: check the wages line, whether a business or K-1 loss was read as income (a loss is printed in parentheses), and the rental rent, expenses and depreciation.`)
+    hints.push(`Income comes out ${dir} than the return: check the wages line, whether a business or K-1 loss was read as income (a loss is printed in parentheses), whether one K-1 figure landed on both the S-Corp and partnership lines, and the rental rent, expenses and depreciation.`)
   }
   if (agi.ok && !tax.ok) {
     const dir = tax.computed > tax.filed ? 'higher' : 'lower'

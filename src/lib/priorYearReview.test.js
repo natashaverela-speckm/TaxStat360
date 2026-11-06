@@ -197,6 +197,12 @@ describe('entity return contracts', () => {
     // the same number with the wrong sign (Schedule E column (i) prints losses unsigned) is corrected
     const h = mergeEntityReturns(normalizeReviewFields({ k1ScorpOrdinary: 293589 }), [{ kind: '1120s', fields: { ...SCORP_1120S, ordinaryBusinessIncome: -293589 } }])
     expect(h.k1ScorpOrdinary).toBe(-293589)
+    // the one K-1 figure copied onto the partnership line is dropped when the 1120-S is the only entity return
+    const d = mergeEntityReturns(normalizeReviewFields({ k1ScorpOrdinary: -293589, k1PartnershipOrdinary: -293589 }), [{ kind: '1120s', fields: { ...SCORP_1120S, ordinaryBusinessIncome: -293589 } }])
+    expect(d.k1PartnershipOrdinary).toBe(0)
+    expect(d.k1ScorpOrdinary).toBe(-293589)
+    const keep = mergeEntityReturns(normalizeReviewFields({ k1ScorpOrdinary: -293589, k1PartnershipOrdinary: 40000 }), [{ kind: '1120s', fields: { ...SCORP_1120S, ordinaryBusinessIncome: -293589 } }])
+    expect(keep.k1PartnershipOrdinary).toBe(40000)
   })
 })
 
