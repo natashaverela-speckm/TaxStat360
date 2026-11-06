@@ -234,13 +234,21 @@ export function mergeEntityReturns(f, entityReturns = []) {
     const e = scorp.fields || {}
     const share = 1 / Math.max(1, nf(e.shareholderCount) || 1)
     if (!nf(out.officerW2) && nf(e.officerCompensation) > 0) out.officerW2 = Math.round(nf(e.officerCompensation) * share)
-    if (!nf(out.k1ScorpOrdinary) && nf(e.ordinaryBusinessIncome) !== 0) out.k1ScorpOrdinary = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    // The 1120-S line 22 × the owner's share IS the K-1 box 1. The 1040 package often
+    // shows the figure only on Schedule E column (i), where a loss prints without a
+    // sign, so the entity return wins whenever the 1040 figure is blank or is the
+    // same number with the wrong sign. A different number is kept (a second S-Corp).
+    const k1FromEntity = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    const k1On1040 = nf(out.k1ScorpOrdinary)
+    if (k1FromEntity !== 0 && (!k1On1040 || Math.abs(Math.abs(k1On1040) - Math.abs(k1FromEntity)) <= 1)) out.k1ScorpOrdinary = k1FromEntity
     if (nf(out.officerW2) > nf(out.w2Wages)) out.w2Wages = nf(out.officerW2)
   }
   if (pship) {
     const e = pship.fields || {}
     const share = 1 / Math.max(1, nf(e.partnerCount) || 1)
-    if (!nf(out.k1PartnershipOrdinary) && nf(e.ordinaryBusinessIncome) !== 0) out.k1PartnershipOrdinary = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    const pk1FromEntity = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    const pk1On1040 = nf(out.k1PartnershipOrdinary)
+    if (pk1FromEntity !== 0 && (!pk1On1040 || Math.abs(Math.abs(pk1On1040) - Math.abs(pk1FromEntity)) <= 1)) out.k1PartnershipOrdinary = pk1FromEntity
   }
   return out
 }

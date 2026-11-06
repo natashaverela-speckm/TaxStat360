@@ -143,6 +143,8 @@ describe('ReviewScreen', () => {
     expect(await screen.findByText("Here's what we read")).toBeInTheDocument()
     const scorp = screen.getByLabelText('S-Corp return (1120-S)')
     expect(within(scorp).getByLabelText('Officer salary (W-2 from the company)').value).toBe('80,000')
+    // the 1040 table shows the K-1 as the 1120-S settles it (same number, sign corrected by the entity return)
+    expect(screen.getByLabelText('S-Corp income (K-1)').value).toBe('113,880')
     expect(within(scorp).getByLabelText('Distributions to shareholders').value).toBe('150,000')
     expect(document.body.textContent).toMatch(/2 fields are marked/)   // k1 on the 1040, distributions on the 1120-S
     fireEvent.click(screen.getByText(/Show all fields/))

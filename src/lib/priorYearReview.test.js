@@ -192,6 +192,9 @@ describe('entity return contracts', () => {
     const g = mergeEntityReturns(normalizeReviewFields({ officerW2: 80000, k1ScorpOrdinary: 1 }), [{ kind: '1120s', fields: SCORP_1120S }])
     expect(g.officerW2).toBe(80000)
     expect(g.k1ScorpOrdinary).toBe(1)
+    // the same number with the wrong sign (Schedule E column (i) prints losses unsigned) is corrected
+    const h = mergeEntityReturns(normalizeReviewFields({ k1ScorpOrdinary: 293589 }), [{ kind: '1120s', fields: { ...SCORP_1120S, ordinaryBusinessIncome: -293589 } }])
+    expect(h.k1ScorpOrdinary).toBe(-293589)
   })
 })
 
