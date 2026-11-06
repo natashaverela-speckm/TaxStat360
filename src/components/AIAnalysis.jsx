@@ -25,6 +25,7 @@ import { readPersonalContext, readTaxYear, readStep1State, readBusinessInfo, wri
 // PHASE 2.2: engine-true figures for card gating — cures R-2 (local AGI drift)
 import { summarizeRecord } from '../utils/calcSelector.js'
 import { buildOpportunities, getTotalW2, getEntityIncomeSplit, recEntityType, recDepreciation } from '../lib/opportunities.js'
+import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 // PHASE 2.5 (M8 disposition): simulator inputs join the live-comma standard.
 import MoneyInput from './MoneyInput.jsx'
 // Phase 3 (Aug 2026) — §121 calculator citation tooltips (same component TaxReturn.jsx/
@@ -2418,7 +2419,10 @@ export default function AIAnalysis() {
   const headlineQuarterly = engSummary.ok && (engSummary.quarterlyRecommended || 0) > 0 ? engSummary.quarterlyRecommended : (nf(rec?.quarterly) || 0)
   const headlineHasData = score > 0
 
-  if (!isPro()) {
+  // PHASE 1 (simple flow): the savings list is the product, not a Professional
+  // perk — the page gate is off when the simple flow is on. Enterprise-only report
+  // tabs keep their own LockedFeature wrappers.
+  if (!isPro() && !SIMPLE_FLOW_ENABLED) {
     return (
       <div style={{ minHeight: '100vh', background: '#F0F4FF', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #cbd5e1', padding: '48px 36px', maxWidth: 480, textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>

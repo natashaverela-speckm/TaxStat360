@@ -73,6 +73,7 @@ import { fmt, effectiveRate } from '../utils/money.js'  // Module E (audit F-3):
 import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1Share, ccorpOwnerShare } from '../utils/entityPredicates.js'
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { isPro } from './LockedFeature'
+import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 import InfoTip from './InfoTip.jsx'
 
 // Module-1 fix (F1/F2): the Dashboard previously carried its OWN copy of
@@ -284,6 +285,9 @@ export default function Dashboard() {
   const dismissDisclaimer = () => { writeDisclaimerSeen('1'); setShowDisclaimer(false) }
 
   const [show2FANudge, setShow2FANudge] = useState(() =>
+    // PHASE 1 (simple flow): one banner per screen. The 2FA nudge lives in Settings
+    // (which already carries the MFA controls); the dashboard keeps the disclaimer only.
+    !SIMPLE_FLOW_ENABLED &&
     readMfaEnabled() !== '1' &&
     !read2FANudge()
   )
@@ -758,8 +762,11 @@ export default function Dashboard() {
 
         {/* Records header */}
         <SubscriptionIncompleteBanner />
-        <FederalDisclosureBanner />
-        <CarryforwardDashboardPrompt />
+        {/* PHASE 1 (simple flow): "federal only" is a caption under the number on the
+            result screen and carryforwards are a "Make it more accurate" link there, so
+            neither needs a dashboard banner when the flow is on. */}
+        {!SIMPLE_FLOW_ENABLED && <FederalDisclosureBanner />}
+        {!SIMPLE_FLOW_ENABLED && <CarryforwardDashboardPrompt />}
         <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: N, margin: 0 }}>My Saved Records</h2>
