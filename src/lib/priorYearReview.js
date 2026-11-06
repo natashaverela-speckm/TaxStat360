@@ -50,18 +50,27 @@ export const TAX_1040_REVIEW_FIELDS = Object.freeze([
   { key: 'schedCNet',                  group: 'Business',    kind: 'money', label: 'Self-employment profit (net)',               source: 'Schedule C line 31' },
   { key: 'k1ScorpOrdinary',            group: 'Business',    kind: 'money', label: 'S-Corp income (K-1)',                        source: 'Schedule K-1 (1120-S) box 1' },
   { key: 'k1PartnershipOrdinary',      group: 'Business',    kind: 'money', label: 'Partnership income (K-1)',                   source: 'Schedule K-1 (1065) box 1' },
+  { key: 'interestIncome',             group: 'Other income', kind: 'money', label: 'Taxable interest',                 source: 'Form 1040 line 2b' },
+  { key: 'dividends',                  group: 'Other income', kind: 'money', label: 'Ordinary dividends',               source: 'Form 1040 line 3b' },
+  { key: 'qualifiedDividends',         group: 'Other income', kind: 'money', label: 'Of those, qualified dividends',     source: 'Form 1040 line 3a' },
+  { key: 'capitalGain',                group: 'Other income', kind: 'money', label: 'Capital gain or loss',             source: 'Form 1040 line 7a' },
+  { key: 'unrecaptured1250Gain',       group: 'Other income', kind: 'money', label: 'Of the capital gain, unrecaptured depreciation (25% rate)', source: 'Schedule D line 19' },
+  { key: 'gain4797',                   group: 'Other income', kind: 'money', label: 'Gain or loss on business property', source: 'Schedule 1 line 4 (Form 4797)' },
+  { key: 'otherIncome',                group: 'Other income', kind: 'money', label: 'Other taxable income',             source: 'Form 1040 lines 4b, 5b, 6b and Schedule 1 other lines' },
   { key: 'schedEPropertyCount',        group: 'Rentals',     kind: 'int',   label: 'Number of rental properties',                source: 'Schedule E Part I' },
   { key: 'schedERent',                 group: 'Rentals',     kind: 'money', label: 'Rent received',                              source: 'Schedule E line 3' },
   { key: 'schedEExpenses',             group: 'Rentals',     kind: 'money', label: 'Rental expenses (not counting depreciation)', source: 'Schedule E lines 5–17' },
   { key: 'schedEDepreciation',         group: 'Rentals',     kind: 'money', label: 'Rental depreciation',                        source: 'Schedule E line 18' },
   { key: 'rentalBuildingBasis',        group: 'Rentals',     kind: 'money', label: 'Building cost basis (optional, all rentals)', source: 'Form 4562 / depreciation schedule' },
   { key: 'shortTermRental',            group: 'Rentals',     kind: 'bool',  label: 'Any rental with average stays of 7 days or less', source: 'Your records' },
+  { key: 'realEstateProfessional',     group: 'Rentals',     kind: 'bool',  label: 'Rental losses taken in full as a real estate professional', source: 'Schedule E line 43 / no Form 8582' },
   { key: 'depreciationTotal',          group: 'Deductions',  kind: 'money', label: 'Total depreciation claimed',                 source: 'Form 4562 line 22' },
   { key: 'sec179',                     group: 'Deductions',  kind: 'money', label: 'Equipment expensed in full',                 source: 'Form 4562 line 12' },
   { key: 'qbiDeduction',               group: 'Deductions',  kind: 'money', label: 'Business income deduction',                  source: 'Form 1040 line 13 (Form 8995)' },
   { key: 'selfEmpRetirement',          group: 'Deductions',  kind: 'money', label: 'Retirement contributions deducted',          source: 'Schedule 1 line 16' },
   { key: 'hsaDeduction',               group: 'Deductions',  kind: 'money', label: 'HSA contributions deducted',                 source: 'Schedule 1 line 13' },
   { key: 'selfEmpHealthIns',           group: 'Deductions',  kind: 'money', label: 'Self-employed health insurance deducted',    source: 'Schedule 1 line 17' },
+  { key: 'itemizedDeductions',         group: 'Deductions',  kind: 'money', label: 'Itemized deductions (if itemized)', source: 'Schedule A line 17' },
   { key: 'homeOfficeClaimed',          group: 'Deductions',  kind: 'bool',  label: 'Home office claimed',                        source: 'Form 8829 or Schedule C line 30' },
   { key: 'agi',                        group: 'Totals',      kind: 'money', label: 'Adjusted gross income',                      source: 'Form 1040 line 11' },
   { key: 'totalTax',                   group: 'Totals',      kind: 'money', label: 'Total tax',                                  source: 'Form 1040 line 24' },
@@ -256,16 +265,23 @@ export function buildReviewEntities(f, rental = 'filed') {
   if (f.k1ScorpOrdinary || f.officerW2) {
     const sal = Math.max(0, nf(f.officerW2))
     const fica = sal ? calcEmployerFICA(sal, taxYear) : 0
+    const k1 = nf(f.k1ScorpOrdinary)
     ents.push(entity('S Corporation', 'Your S-Corp', {
       officerW2: sal,
       k1DirectMode: true,
-      pnl: { grossRevenue: 0, totalExpenses: 0, officerSalary: sal, employerPayrollTax: fica, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: nf(f.k1ScorpOrdinary), categories: {} },
+      pnl: { grossRevenue: 0, totalExpenses: 0, officerSalary: sal, employerPayrollTax: fica, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: k1, categories: {} },
+      // The live app suspends an S-Corp loss until stock basis is entered (§1366(d),
+      // Form 7203). A filed return that deducted the loss proves the basis was there,
+      // so the review models it as filed: basis at least the loss taken.
+      ...(k1 < 0 ? { stockBasis: Math.abs(k1) } : {}),
     }))
   }
   if (f.k1PartnershipOrdinary) {
+    const pk1 = nf(f.k1PartnershipOrdinary)
     ents.push(entity('Partnership / LLC', 'Your partnership', {
       k1DirectMode: true,
-      pnl: { grossRevenue: 0, totalExpenses: 0, officerSalary: 0, employerPayrollTax: 0, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: nf(f.k1PartnershipOrdinary), categories: {} },
+      pnl: { grossRevenue: 0, totalExpenses: 0, officerSalary: 0, employerPayrollTax: 0, depreciation: 0, advertising: 0, otherDeductions: 0, netProfit: pk1, categories: {} },
+      ...(pk1 < 0 ? { stockBasis: Math.abs(pk1) } : {}),   // same §704(d) reasoning as the S-Corp
     }))
   }
   if (f.schedCGross || f.schedCNet) {
@@ -276,7 +292,9 @@ export function buildReviewEntities(f, rental = 'filed') {
   }
   if (f.schedERent || f.schedEExpenses || f.schedEDepreciation) {
     const rent = Math.max(0, nf(f.schedERent)), ex = Math.max(0, nf(f.schedEExpenses)), dep = Math.max(0, nf(f.schedEDepreciation))
-    const nonpassive = rental === 'reps' || rental === 'str'
+    // As filed, a real estate professional's rentals are already nonpassive.
+    const filedAsRep = rental === 'filed' && !!f.realEstateProfessional
+    const nonpassive = rental === 'reps' || rental === 'str' || filedAsRep
     ents.push(entity('Real Estate (Schedule E)', 'Your rentals', {
       pnl: { grossRevenue: rent, totalExpenses: ex + dep, officerSalary: 0, employerPayrollTax: 0, depreciation: dep, advertising: 0, otherDeductions: 0, netProfit: rent - ex - dep, categories: {} },
       priorPAL: nf(f.priorPassiveLossCarryforward) || '',
@@ -287,7 +305,7 @@ export function buildReviewEntities(f, rental = 'filed') {
       // without the grouping election.
       isREP: nonpassive,
       materiallyParticipates: nonpassive ? true : undefined,
-      rentalAggregationElection: rental === 'reps',
+      rentalAggregationElection: rental === 'reps' || filedAsRep,
     }))
   }
   return ents
@@ -311,6 +329,18 @@ export function buildReviewRecord(f, rental = 'filed') {
     capLossCarryforwardLT: nf(f.capLossCarryforwardLT),
     nolCarryforward: nf(f.nolCarryforward),
     priorYearQBILoss: nf(f.priorYearQBILoss),
+    priorYearLosses: nf(f.priorYearQBILoss),   // the engine translator's name for the same figure
+    // Investment and other income, so the as-filed recompute lands on the return's own AGI.
+    interest: nf(f.interestIncome),
+    dividends: nf(f.dividends),
+    qualifiedDividends: Math.min(nf(f.qualifiedDividends), nf(f.dividends)),
+    capitalGains: nf(f.capitalGain),
+    unrecap1250: Math.min(Math.max(0, nf(f.unrecaptured1250Gain)), Math.max(0, nf(f.capitalGain))),
+    form4797: nf(f.gain4797),
+    f4797MateriallyParticipated: !!f.realEstateProfessional,
+    otherIncome: nf(f.otherIncome),
+    useItemized: nf(f.itemizedDeductions) > 0,
+    itemizedAmt: nf(f.itemizedDeductions),
     isREP: rental === 'reps' || rental === 'str',
   }
   return {
@@ -333,7 +363,7 @@ export function buildReviewRecord(f, rental = 'filed') {
  *  the extractor was unsure of it. */
 export const HEADLINE_REVIEW_KEYS = Object.freeze([
   'taxYear', 'filingStatus', 'w2Wages', 'schedCNet', 'k1ScorpOrdinary', 'k1PartnershipOrdinary',
-  'schedERent', 'agi', 'totalTax', 'w2Withheld', 'estimatedPaymentsMade',
+  'schedERent', 'realEstateProfessional', 'agi', 'totalTax', 'w2Withheld', 'estimatedPaymentsMade',
 ])
 export const HEADLINE_ENTITY_KEYS = Object.freeze({
   '1120s': ['taxYear', 'grossReceipts', 'officerCompensation', 'ordinaryBusinessIncome', 'distributions'],
@@ -589,7 +619,19 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
       suspended: filed.ok ? nf(filed.totalSuspendedLoss) : 0,
     })
     const saving = filed.ok && reps.ok ? Math.max(0, filed.totalTax - reps.totalTax) : null
-    F.passive.push(finding('passive', 'three-way', 'The rental loss as filed, with REPS, and with the short-term rental exception', {
+    if (f.realEstateProfessional) {
+      // Already nonpassive as filed. The number that matters is what REPS is
+      // worth, and the exposure is the log that has to back it up.
+      const without = summarizeRecord(buildReviewRecord({ ...f, realEstateProfessional: false }, 'filed'))
+      const atRisk = filed.ok && without.ok ? Math.max(0, without.totalTax - filed.totalTax) : null
+      F.passive.push(finding('passive', 'reps-claimed', 'Real estate professional status claimed: the hours log is what holds it', {
+        exposure: true,
+        basis: 'IRC §469(c)(7)(B) (750 hours and more than half of personal services); Temp. Reg. §1.469-5T(a) (material participation); Treas. Reg. §1.469-9(g) (grouping election); Temp. Reg. §1.469-5T(f)(4) (proof of participation); Moss v. Commissioner, 135 T.C. 365 (2010)',
+        conditions: 'Both hour tests every year, material participation in each rental or a grouping election on file, and a contemporaneous log: dates, hours, what was done, for which property. Reconstructed logs and round numbers are what the Tax Court rejects.',
+        detail: `The rentals were deducted in full as nonpassive (Schedule E line 43). ${atRisk != null ? `Without REPS the same return would have owed ${fmt(without.totalTax)} instead of ${fmt(filed.totalTax)}: ${fmt(atRisk)} rides on the log.` : ''} An examiner asks for the log before anything else.`,
+        link: REPS_LINK,
+      }))
+    } else F.passive.push(finding('passive', 'three-way', 'The rental loss as filed, with REPS, and with the short-term rental exception', {
       impact: saving,
       basis: 'IRC §469(c)(7)(B) (REPS: 750 hours and more than half of personal services); Temp. Reg. §1.469-5T(a) (material participation); Temp. Reg. §1.469-1T(e)(3)(ii)(A) (average stay of 7 days or less is not a rental activity)',
       conditions: rentalNet < 0

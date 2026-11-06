@@ -309,3 +309,39 @@ describe('self-check (reconcileReview)', () => {
     }
   })
 })
+
+describe('real estate professional as filed', () => {
+  // Natasha's 2025 return, line by line (amended): wages, S-Corp loss, four rentals as a
+  // real estate professional, interest, dividends, a capital gain, a §1231 gain, itemized.
+  const REP = { taxYear: 2025, filingStatus: 'single', w2Wages: 287500, officerW2: 287500, k1ScorpOrdinary: -293589,
+    schedEPropertyCount: 4, schedERent: 176965, schedEExpenses: 222692, schedEDepreciation: 45872, realEstateProfessional: true,
+    interestIncome: 8708, dividends: 249, qualifiedDividends: 143, capitalGain: 76397, unrecaptured1250Gain: 76319, gain4797: 80769, itemizedDeductions: 28924,
+    agi: 68435, totalTax: 5263, w2Withheld: 787, underpaymentPenalty: 184, priorYearQBILoss: 945855 }
+
+  it('the as-filed record treats the rentals as nonpassive with the grouping election', () => {
+    const re = buildReviewEntities(normalizeReviewFields(REP), 'filed').find(e => e.type.startsWith('Real'))
+    expect(re.isREP && re.materiallyParticipates && re.rentalAggregationElection).toBe(true)
+    const off = buildReviewEntities(normalizeReviewFields({ ...REP, realEstateProfessional: false }), 'filed').find(e => e.type.startsWith('Real'))
+    expect(off.isREP).toBe(false)
+  })
+
+  it('the self-check reproduces the return once REPS is known', () => {
+    const r = reconcileReview(REP)
+    expect(r.agi.ok).toBe(true)
+    expect(r.tax.ok).toBe(true)
+    expect(reconcileReview({ ...REP, realEstateProfessional: false }).agi.ok).toBe(false)
+    expect(reconcileReview({ ...REP, k1ScorpOrdinary: 293589 }).agi.ok).toBe(false)
+  })
+
+  it('the memo shows what REPS is worth and the log exposure instead of selling REPS', () => {
+    const m = buildPriorYearMemo(REP)
+    const codes = m.sections.find(s => s.id === 'passive').findings.map(x => x.code)
+    expect(codes).toContain('reps-claimed')
+    expect(codes).not.toContain('three-way')
+    const rc = m.sections.find(s => s.id === 'passive').findings.find(x => x.code === 'reps-claimed')
+    expect(rc.exposure).toBe(true)
+    expect(rc.detail).toMatch(/rides on the log/)
+    expect(rc.link).toMatch(/repsrecord/)
+    expect(m.scenarios.filed).toBe(m.scenarios.reps)
+  })
+})
