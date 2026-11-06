@@ -19,7 +19,8 @@ import MoneyInput from '../MoneyInput.jsx'
 import { prepareTax1040TextForUpload } from '../../lib/pdfTextGate.js'
 import { extractTax1040ReviewText } from '../../lib/carryforwardExtractClient.js'
 import {
-  TAX_1040_REVIEW_FIELDS, normalizeReviewFields, buildPriorYearMemo, buildReviewEntities,
+  TAX_1040_REVIEW_FIELDS, normalizeReviewFields, buildPriorYearMemo, buildReviewEntities, mergeEntityReturns,
+  ENTITY_RETURN_KINDS, ENTITY_RETURN_FIELDS, detectReturnType,
 } from '../../lib/priorYearReview.js'
 import { sumK1FlowThrough } from '../../lib/taxCalc.js'
 import { CURRENT_TAX_YEAR } from '../../lib/constants.js'
@@ -36,8 +37,8 @@ const btnQuiet = { padding: '10px 14px', background: '#fff', color: N, border: '
 
 /** Write the confirmed prior-year figures as THIS year's live session (as-filed
  *  §469 position), so Screen 3 shows "how this year is tracking on the same numbers". */
-export function seedCurrentYearFromReview(fields) {
-  const f = normalizeReviewFields(fields)
+export function seedCurrentYearFromReview(fields, entityReturns = []) {
+  const f = mergeEntityReturns(normalizeReviewFields(fields), entityReturns)
   const entities = buildReviewEntities({ ...f, taxYear: CURRENT_TAX_YEAR }, 'filed')
   writeTaxYear(CURRENT_TAX_YEAR)
   writeStep1State({ entities, entitiesRaw: entities, k1Total: sumK1FlowThrough(entities) })
@@ -57,58 +58,138 @@ export function seedCurrentYearFromReview(fields) {
   writeDirtyFlag(true)
 }
 
+const MAX_ENTITY_RETURNS = 3
+
+const KIND_LABEL = { '1040': 'Personal return (1040)', '1120s': ENTITY_RETURN_KINDS['1120s'].label, '1065': ENTITY_RETURN_KINDS['1065'].label }
+
+/** Read one PDF in the browser, detect which return it is, mask SSNs, extract. */
+async function readOneReturn(file) {
+  const gate = await prepareTax1040TextForUpload(file)
+  if (!gate.ok) return { ok: false, name: file.name, error: gate.message }
+  const kind = detectReturnType(gate.text)
+  if (!kind) return { ok: false, name: file.name, error: 'We could not tell which federal return this is. Upload the 1040, 1120-S or 1065 PDF your tax software produced.' }
+  const profile = kind === '1040' ? 'tax-1040-review' : ENTITY_RETURN_KINDS[kind].profile
+  const fixture = /fixture-tax-/i.test(file.name || '') ? file.name : null
+  const res = await extractTax1040ReviewText(gate.text, profile, fixture)
+  if (!res.ok) return { ok: false, name: file.name, kind, error: res.error }
+  return { ok: true, name: file.name, kind, fields: res.result.fields || {}, confidence: res.result.confidence || {} }
+}
+
 function UploadStep({ onExtracted }) {
   const inputRef = useRef(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState(null)
+  const [files, setFiles] = useState([])   // [{ ok, name, kind, fields, confidence, error }]
   const handle = async (list) => {
-    const file = list && list[0]
-    if (!file) return
+    const picked = Array.from(list || []).slice(0, 1 + MAX_ENTITY_RETURNS)
+    if (!picked.length) return
     setBusy(true); setNotice(null)
     try {
-      // The PDF is read here, in the browser. SSNs are masked on the device and only
-      // the masked text layer is sent; the file itself never leaves this computer.
-      const gate = await prepareTax1040TextForUpload(file)
-      if (!gate.ok) { setNotice({ kind: 'error', text: gate.message }); return }
-      const res = await extractTax1040ReviewText(gate.text)
-      if (!res.ok) { setNotice({ kind: 'error', text: res.error }); return }
-      onExtracted(res.result)
+      const results = []
+      for (const file of picked) results.push(await readOneReturn(file))
+      setFiles(prev => {
+        const next = [...prev]
+        for (const r of results) {
+          // one 1040; entity returns stack up to the cap, replacing a same-named file
+          const i = next.findIndex(x => x.name === r.name || (r.ok && r.kind === '1040' && x.ok && x.kind === '1040'))
+          if (i >= 0) next[i] = r; else next.push(r)
+        }
+        return next
+      })
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
     }
   }
+  const good = files.filter(f => f.ok)
+  const individual = good.find(f => f.kind === '1040')
+  const entities = good.filter(f => f.kind !== '1040').slice(0, MAX_ENTITY_RETURNS)
+  const go = () => {
+    if (!individual) { setNotice({ kind: 'error', text: 'Add the personal return (Form 1040) first; the business returns are read alongside it.' }); return }
+    onExtracted({ individual, entities })
+  }
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Review last year's return</h1>
       <p style={{ fontSize: 14, color: SL, margin: '0 0 16px', lineHeight: 1.6 }}>
-        Upload the PDF of last year's federal return. We read the figures, show you every one to confirm, and then lay out what the return left on the table and what to do about it this year.
+        Upload the PDF of last year's federal return. If you have an S-Corp or a partnership, add its return too (the 1120-S or 1065): officer pay, distributions and what the company already deducts live there, not on the 1040. We read the figures, show you every one to confirm, and then lay out what the returns left on the table.
       </p>
       <div style={{ background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 12, padding: 18, marginBottom: 14 }}>
-        <input ref={inputRef} id="review-file" type="file" accept="application/pdf,.pdf" disabled={busy} onChange={e => handle(e.target.files)} style={{ fontSize: 14 }} />
+        <input ref={inputRef} id="review-file" type="file" multiple accept="application/pdf,.pdf" disabled={busy} onChange={e => handle(e.target.files)} style={{ fontSize: 14 }} aria-label="Return PDFs" />
         <div style={{ fontSize: 12, color: SL, marginTop: 10, lineHeight: 1.5 }}>
-          Text PDFs only (the one your tax software produced, not a phone photo). The PDF is read right here in your browser and never uploaded: Social Security numbers are masked on your device, and only the masked text is sent to pull the figures. Nothing from the return is stored.
+          Text PDFs only (the ones your tax software produced, not phone photos). Pick several at once or add them one at a time; we work out which return each one is. The PDFs are read right here in your browser and never uploaded: Social Security numbers are masked on your device, and only the masked text is sent to pull the figures. Nothing from the returns is stored.
         </div>
-        {busy && <div style={{ marginTop: 10, fontSize: 13, color: B, fontWeight: 600 }}>Reading the return…</div>}
+        {busy && <div style={{ marginTop: 10, fontSize: 13, color: B, fontWeight: 600 }}>Reading…</div>}
+        {files.length > 0 && (
+          <ul aria-label="Returns read" style={{ listStyle: 'none', padding: 0, margin: '12px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {files.map(f => (
+              <li key={f.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 13, padding: '8px 10px', background: '#F8FAFC', borderRadius: 8 }}>
+                <span style={{ color: f.ok ? N : R }}>
+                  <strong>{f.ok ? KIND_LABEL[f.kind] : 'Not read'}</strong> · {f.name}
+                  {!f.ok && <div style={{ fontSize: 12, marginTop: 2 }}>{f.error}</div>}
+                </span>
+                <button onClick={() => setFiles(p => p.filter(x => x.name !== f.name))} style={{ background: 'none', border: 'none', color: SL, cursor: 'pointer', fontSize: 12 }} aria-label={`Remove ${f.name}`}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        )}
         {notice && <div role="alert" style={{ marginTop: 10, fontSize: 13, color: notice.kind === 'error' ? R : SUCCESS_TEXT }}>{notice.text}</div>}
       </div>
+      {good.length > 0 && (
+        <button onClick={go} disabled={busy} style={{ ...btnPrimary, width: '100%', marginBottom: 14 }}>
+          {individual ? `Check the figures${entities.length ? ` (1040 + ${entities.map(e => ENTITY_RETURN_KINDS[e.kind].short).join(', ')})` : ''} →` : 'Add the 1040 to continue'}
+        </button>
+      )}
       <p style={{ fontSize: 12, color: SL, lineHeight: 1.5 }}>This is an opportunity analysis for planning, not a review of whether the return was prepared correctly and not advice on amending it. If anything here suggests a change to a filed return, an Enrolled Agent or CPA should look at it.</p>
     </div>
   )
 }
 
-function ConfirmStep({ initial, confidence, onConfirm, onBack }) {
-  const [v, setV] = useState(() => {
-    const out = {}
-    for (const f of TAX_1040_REVIEW_FIELDS) {
-      const raw = initial[f.key]
-      out[f.key] = raw == null ? '' : f.kind === 'bool' ? !!raw : String(raw)
-    }
-    return out
-  })
+function FieldTable({ defs, v, set, confidence, idPrefix }) {
+  const groups = [...new Set(defs.map(f => f.group))]
+  return groups.map(g => (
+    <section key={g} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+      <h2 style={{ fontSize: 13, fontWeight: 800, color: SL, textTransform: 'uppercase', letterSpacing: 0.6, margin: '0 0 8px' }}>{g}</h2>
+      {defs.filter(f => f.group === g).map(f => {
+        const low = (confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && v[f.key] !== ''
+        const id = idPrefix + f.key
+        return (
+          <div key={f.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(140px, 200px)', gap: 10, alignItems: 'center', padding: '7px 0', borderTop: '1px solid #F1F5F9' }}>
+            <label htmlFor={id} style={{ fontSize: 13, color: N }}>
+              {f.label}
+              <div style={{ fontSize: 11, color: SL }}>{f.source}{low && <span style={{ color: O, fontWeight: 700 }}> · double-check</span>}</div>
+            </label>
+            {f.kind === 'money' && <MoneyInput id={id} value={v[f.key]} onChange={set(f.key)} allowNegative placeholder="—" style={{ ...inputStyle, borderColor: low ? O : '#CBD5E1' }} ariaLabel={f.label} />}
+            {f.kind === 'int' && <input id={id} type="number" min="0" value={v[f.key]} onChange={e => set(f.key)(e.target.value)} style={{ ...inputStyle, borderColor: low ? O : '#CBD5E1' }} />}
+            {f.kind === 'enum' && (
+              <select id={id} value={v[f.key] || f.options[0]} onChange={e => set(f.key)(e.target.value)} style={inputStyle}>
+                {f.options.map(o => <option key={o} value={o}>{{ single: 'Single', mfj: 'Married filing jointly', mfs: 'Married filing separately', hoh: 'Head of household', qss: 'Qualifying surviving spouse' }[o]}</option>)}
+              </select>
+            )}
+            {f.kind === 'bool' && <input id={id} type="checkbox" checked={!!v[f.key]} onChange={e => set(f.key)(e.target.checked)} style={{ width: 20, height: 20, justifySelf: 'start' }} />}
+          </div>
+        )
+      })}
+    </section>
+  ))
+}
+
+function initialValues(defs, initial) {
+  const out = {}
+  for (const f of defs) {
+    const raw = initial[f.key]
+    out[f.key] = raw == null ? '' : f.kind === 'bool' ? !!raw : String(raw)
+  }
+  return out
+}
+
+function ConfirmStep({ initial, confidence, entities = [], onConfirm, onBack }) {
+  const [v, setV] = useState(() => initialValues(TAX_1040_REVIEW_FIELDS, initial))
+  const [ev, setEv] = useState(() => entities.map(e => initialValues(ENTITY_RETURN_FIELDS[e.kind], e.fields || {})))
   const set = (k) => (val) => setV(p => ({ ...p, [k]: val }))
-  const groups = [...new Set(TAX_1040_REVIEW_FIELDS.map(f => f.group))]
+  const setE = (i) => (k) => (val) => setEv(p => p.map((x, j) => j === i ? { ...x, [k]: val } : x))
   const lowCount = TAX_1040_REVIEW_FIELDS.filter(f => (confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && v[f.key] !== '').length
+    + entities.reduce((t, e, i) => t + ENTITY_RETURN_FIELDS[e.kind].filter(f => (e.confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && ev[i][f.key] !== '').length, 0)
   return (
     <div>
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: SL, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 10 }}>← Upload a different file</button>
@@ -117,32 +198,15 @@ function ConfirmStep({ initial, confidence, onConfirm, onBack }) {
         Check each figure against the return and fix anything that's off. Blank means it wasn't on the return.
         {lowCount > 0 && <> <span style={{ color: O, fontWeight: 700 }}>{lowCount} field{lowCount === 1 ? '' : 's'}</span> {lowCount === 1 ? 'is' : 'are'} marked because we weren't sure of the number.</>}
       </p>
-      {groups.map(g => (
-        <section key={g} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
-          <h2 style={{ fontSize: 13, fontWeight: 800, color: SL, textTransform: 'uppercase', letterSpacing: 0.6, margin: '0 0 8px' }}>{g}</h2>
-          {TAX_1040_REVIEW_FIELDS.filter(f => f.group === g).map(f => {
-            const low = (confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && v[f.key] !== ''
-            const id = 'rv-' + f.key
-            return (
-              <div key={f.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(140px, 200px)', gap: 10, alignItems: 'center', padding: '7px 0', borderTop: '1px solid #F1F5F9' }}>
-                <label htmlFor={id} style={{ fontSize: 13, color: N }}>
-                  {f.label}
-                  <div style={{ fontSize: 11, color: SL }}>{f.source}{low && <span style={{ color: O, fontWeight: 700 }}> · double-check</span>}</div>
-                </label>
-                {f.kind === 'money' && <MoneyInput id={id} value={v[f.key]} onChange={set(f.key)} allowNegative placeholder="—" style={{ ...inputStyle, borderColor: low ? O : '#CBD5E1' }} ariaLabel={f.label} />}
-                {f.kind === 'int' && <input id={id} type="number" min="0" value={v[f.key]} onChange={e => set(f.key)(e.target.value)} style={{ ...inputStyle, borderColor: low ? O : '#CBD5E1' }} />}
-                {f.kind === 'enum' && (
-                  <select id={id} value={v[f.key] || f.options[0]} onChange={e => set(f.key)(e.target.value)} style={inputStyle}>
-                    {f.options.map(o => <option key={o} value={o}>{{ single: 'Single', mfj: 'Married filing jointly', mfs: 'Married filing separately', hoh: 'Head of household', qss: 'Qualifying surviving spouse' }[o]}</option>)}
-                  </select>
-                )}
-                {f.kind === 'bool' && <input id={id} type="checkbox" checked={!!v[f.key]} onChange={e => set(f.key)(e.target.checked)} style={{ width: 20, height: 20, justifySelf: 'start' }} />}
-              </div>
-            )
-          })}
-        </section>
+      {entities.length > 0 && <h2 style={{ fontSize: 15, fontWeight: 800, color: N, margin: '0 0 10px' }}>Personal return (1040)</h2>}
+      <FieldTable defs={TAX_1040_REVIEW_FIELDS} v={v} set={set} confidence={confidence} idPrefix="rv-" />
+      {entities.map((e, i) => (
+        <div key={e.name || i} aria-label={ENTITY_RETURN_KINDS[e.kind].label}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: N, margin: '18px 0 10px' }}>{ENTITY_RETURN_KINDS[e.kind].label}{e.name ? <span style={{ fontSize: 12, fontWeight: 500, color: SL }}> · {e.name}</span> : null}</h2>
+          <FieldTable defs={ENTITY_RETURN_FIELDS[e.kind]} v={ev[i]} set={setE(i)} confidence={e.confidence} idPrefix={`rv-${e.kind}-${i}-`} />
+        </div>
       ))}
-      <button onClick={() => onConfirm(v)} style={{ ...btnPrimary, width: '100%' }}>These are right — show me the findings →</button>
+      <button onClick={() => onConfirm(v, entities.map((e, i) => ({ kind: e.kind, fields: ev[i] })))} style={{ ...btnPrimary, width: '100%' }}>These are right — show me the findings →</button>
     </div>
   )
 }
@@ -172,8 +236,8 @@ function Finding({ x }) {
   )
 }
 
-function MemoStep({ fields, onBack, onNext }) {
-  const memo = buildPriorYearMemo(fields)
+function MemoStep({ fields, entityReturns = [], onBack, onNext }) {
+  const memo = buildPriorYearMemo(fields, { entityReturns })
   const tax = memo.asFiled.ok ? memo.asFiled.totalTax : null
   return (
     <div>
@@ -182,8 +246,13 @@ function MemoStep({ fields, onBack, onNext }) {
         <div style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.75 }}>What {memo.taxYear} left on the table</div>
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1, margin: '4px 0 2px' }}>~{fmt(memo.totalImpact)}</div>
         <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.5 }}>
-          estimated across {memo.sections.flatMap(s => s.findings).filter(x => !x.exposure && x.impact).length} items, at the figures you confirmed{tax !== null ? `, against ${fmt(tax)} of federal tax computed on those figures` : ''}. Estimates, not a determination; some items exclude each other.
+          estimated across {memo.sections.flatMap(s => s.findings).filter(x => !x.exposure && x.impact).length} items, at the figures you confirmed{memo.entityReturns.length ? ` from the 1040 and the ${memo.entityReturns.map(k => ENTITY_RETURN_KINDS[k].short).join(' and ')}` : ''}{tax !== null ? `, against ${fmt(tax)} of federal tax computed on those figures` : ''}. Estimates, not a determination; some items exclude each other.
         </div>
+        {memo.missingReturns.length > 0 && (
+          <div style={{ marginTop: 12, fontSize: 13, background: 'rgba(255,255,255,0.1)', padding: '8px 10px', borderRadius: 8 }}>
+            Add the {memo.missingReturns.map(k => ENTITY_RETURN_KINDS[k].short).join(' and ')} on the upload step for the compensation and deduction findings that only the business return shows.
+          </div>
+        )}
         {memo.scenarios && memo.scenarios.filed != null && (
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             {[['As filed', memo.scenarios.filed], ['With REPS', memo.scenarios.reps], ['STR exception', memo.scenarios.str]].map(([l, v]) => (
@@ -220,17 +289,18 @@ function MemoStep({ fields, onBack, onNext }) {
 export default function ReviewScreen() {
   const nav = useNavigate()
   const [stage, setStage] = useState('upload')
-  const [extracted, setExtracted] = useState(null)
+  const [extracted, setExtracted] = useState(null)   // { individual: {fields, confidence}, entities: [{kind, name, fields, confidence}] }
   const [fields, setFields] = useState(null)
+  const [entityReturns, setEntityReturns] = useState([])
 
   return (
     <SimpleShell step="review" maxWidth={760}>
       {stage === 'upload' && <UploadStep onExtracted={(r) => { setExtracted(r); setStage('confirm') }} />}
       {stage === 'confirm' && extracted && (
-        <ConfirmStep initial={extracted.fields || {}} confidence={extracted.confidence || {}} onBack={() => setStage('upload')} onConfirm={(v) => { setFields(v); setStage('memo') }} />
+        <ConfirmStep initial={extracted.individual.fields || {}} confidence={extracted.individual.confidence || {}} entities={extracted.entities || []} onBack={() => setStage('upload')} onConfirm={(v, ents) => { setFields(v); setEntityReturns(ents); setStage('memo') }} />
       )}
       {stage === 'memo' && fields && (
-        <MemoStep fields={fields} onBack={() => setStage('confirm')} onNext={() => { seedCurrentYearFromReview(fields); nav('/result') }} />
+        <MemoStep fields={fields} entityReturns={entityReturns} onBack={() => setStage('confirm')} onNext={() => { seedCurrentYearFromReview(fields, entityReturns); nav('/result') }} />
       )}
     </SimpleShell>
   )

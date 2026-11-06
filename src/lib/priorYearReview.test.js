@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import {
   TAX_1040_REVIEW_FIELDS, TAX_1040_REVIEW_FIELD_KEYS, normalizeReviewFields,
   buildReviewRecord, buildReviewEntities, buildPriorYearMemo, REVIEW_PROFILE,
+  ENTITY_RETURN_FIELDS, ENTITY_RETURN_KINDS, normalizeEntityFields, detectReturnType, mergeEntityReturns,
 } from './priorYearReview.js'
 import { summarizeRecord } from '../utils/calcSelector.js'
 
@@ -135,5 +136,110 @@ describe('memo of findings', () => {
     const m = buildPriorYearMemo({})
     expect(m.sections).toEqual([])
     expect(m.totalImpact).toBe(0)
+  })
+})
+
+// ── PHASE 2b: entity returns ────────────────────────────────────────────────
+
+const SCORP_1120S = {
+  taxYear: 2025, shareholderCount: 1, grossReceipts: 420000, totalIncome: 420000,
+  officerCompensation: 80000, salariesWages: 96000, rentsPaid: 24000, taxesAndLicenses: 13460,
+  depreciation: 6200, sec179: null, bonusDepreciation: null, pensionProfitSharing: null, employeeBenefits: null,
+  otherDeductions: 86460, totalDeductions: 306120, ordinaryBusinessIncome: 113880, shareholderHealthIns: null,
+  distributions: 150000, loansToShareholders: 20000, loansFromShareholders: null, totalAssets: 148000,
+  vehicleOrTravel: null, homeOfficeOrAccountablePlan: false,
+}
+const PSHIP_1065 = {
+  taxYear: 2025, partnerCount: 2, grossReceipts: 310000, totalIncome: 310000, guaranteedPayments: 60000,
+  salariesWages: 40000, rentsPaid: 18000, taxesAndLicenses: 4100, depreciation: 5400, sec179: null, bonusDepreciation: null,
+  retirementPlans: null, employeeBenefits: null, otherDeductions: 52500, totalDeductions: 180000, ordinaryBusinessIncome: 130000,
+  netRentalRealEstate: null, selfEmploymentEarnings: 190000, distributions: 110000, totalAssets: 92000, vehicleOrTravel: 7200,
+}
+
+describe('entity return contracts', () => {
+  it('every entity field has a key, group, kind, label and source; keys unique; profiles named', () => {
+    for (const kind of Object.keys(ENTITY_RETURN_FIELDS)) {
+      const keys = ENTITY_RETURN_FIELDS[kind].map(f => f.key)
+      expect(new Set(keys).size).toBe(keys.length)
+      for (const f of ENTITY_RETURN_FIELDS[kind]) expect(f.key && f.group && f.kind && f.label && f.source).toBeTruthy()
+      expect(ENTITY_RETURN_KINDS[kind].profile).toMatch(/^tax-(1120s|1065)-review$/)
+    }
+  })
+
+  it('normalizes and rejects unknown kinds', () => {
+    const e = normalizeEntityFields('1120s', { officerCompensation: '80,000', homeOfficeOrAccountablePlan: 'true', shareholderCount: null })
+    expect(e.officerCompensation).toBe(80000)
+    expect(e.homeOfficeOrAccountablePlan).toBe(true)
+    expect(e.shareholderCount).toBe(0)
+    expect(() => normalizeEntityFields('1120', {})).toThrow()
+  })
+
+  it('detects the return type from the page-1 title, not from the K-1 inside a 1040', () => {
+    expect(detectReturnType('Form 1040 U.S. Individual Income Tax Return 2025 ... Schedule K-1 (Form 1120-S) box 1')).toBe('1040')
+    expect(detectReturnType('Form 1120-S U.S. Income Tax Return for an S Corporation')).toBe('1120s')
+    expect(detectReturnType('Form 1065 U.S. Return of Partnership Income')).toBe('1065')
+    expect(detectReturnType('Form 1120S line 7 compensation of officers')).toBe('1120s')
+    expect(detectReturnType('nothing here')).toBeNull()
+  })
+
+  it('fills the officer W-2 and K-1 share from the 1120-S when the 1040 left them blank', () => {
+    const f = mergeEntityReturns(normalizeReviewFields({ w2Wages: 100000 }), [{ kind: '1120s', fields: { ...SCORP_1120S, shareholderCount: 2 } }])
+    expect(f.officerW2).toBe(40000)
+    expect(f.k1ScorpOrdinary).toBe(56940)
+    const g = mergeEntityReturns(normalizeReviewFields({ officerW2: 80000, k1ScorpOrdinary: 1 }), [{ kind: '1120s', fields: SCORP_1120S }])
+    expect(g.officerW2).toBe(80000)
+    expect(g.k1ScorpOrdinary).toBe(1)
+  })
+})
+
+describe('memo with the entity return', () => {
+  const memo = buildPriorYearMemo(SCORP_RENTAL, { entityReturns: [{ kind: '1120s', fields: SCORP_1120S }] })
+  const codes = (id) => (memo.sections.find(s => s.id === id)?.findings || []).map(x => x.code)
+
+  it('reads reasonable comp from the 1120-S lines and drops the upload nudge', () => {
+    const rc = memo.sections.find(s => s.id === 'comp').findings.find(x => x.code === 'reasonable-comp')
+    expect(rc.detail).toMatch(/Per the 1120-S/)
+    expect(rc.detail).toMatch(/\$150,000 taken as distributions/)
+    expect(codes('comp')).not.toContain('upload-1120s')
+    expect(memo.missingReturns).toEqual([])
+    expect(memo.entityReturns).toEqual(['1120s'])
+  })
+
+  it('adds §6001 exposures for the shareholder loan and distributions over income', () => {
+    expect(codes('records')).toContain('shareholder-loan')
+    expect(codes('records')).toContain('basis-schedule')
+  })
+
+  it('adds §162 findings the entity return makes visible', () => {
+    const c = codes('ordinary')
+    expect(c).toContain('entity-retirement')
+    expect(c).toContain('scorp-health')
+    expect(c).toContain('entity-vehicle')
+    const ho = memo.sections.find(s => s.id === 'ordinary').findings.find(x => x.code === 'home-office')
+    expect(ho.title).toMatch(/accountable-plan/i)
+    const retire = memo.sections.find(s => s.id === 'ordinary').findings.find(x => x.code === 'entity-retirement')
+    expect(retire.impact).toBeGreaterThan(0)
+    // the engine's SEP / Solo cards are not counted a second time
+    expect(codes('more').filter(x => /^(SEP-IRA|Solo 401)/.test(x))).toEqual([])
+  })
+
+  it('§179 reads the entity depreciation lines', () => {
+    const s = memo.sections.find(s => s.id === 'sec179').findings[0]
+    expect(s.detail).toMatch(/1120-S shows \$6,200 of depreciation, nothing expensed under §179 and no bonus depreciation/)
+  })
+
+  it('a 1040 with an S-Corp K-1 and no 1120-S asks for it', () => {
+    const m = buildPriorYearMemo(SCORP_RENTAL)
+    expect(m.missingReturns).toEqual(['1120s'])
+    expect(m.sections.find(s => s.id === 'comp').findings.map(x => x.code)).toContain('upload-1120s')
+  })
+
+  it('a partnership return adds guaranteed-payment and retirement findings', () => {
+    const m = buildPriorYearMemo({ taxYear: 2025, filingStatus: 'mfj', w2Wages: 50000, k1PartnershipOrdinary: 65000 }, { entityReturns: [{ kind: '1065', fields: PSHIP_1065 }] })
+    const c = (m.sections.find(s => s.id === 'ordinary')?.findings || []).map(x => x.code)
+    expect(c).toContain('guaranteed-payments')
+    expect(c).toContain('entity-retirement')
+    expect(c).not.toContain('entity-vehicle')
+    expect(m.missingReturns).toEqual([])
   })
 })

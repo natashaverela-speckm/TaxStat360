@@ -64,12 +64,14 @@ export async function extractTax1040Carryforward(file) {
  * @param {string} text  masked text layer from prepareTax1040TextForUpload
  * @returns {Promise<{ ok: true, result: { fields: object, confidence?: object, warnings?: string[], evidence?: object } } | { ok: false, error: string, code?: string }>}
  */
-export async function extractTax1040ReviewText(text) {
+export async function extractTax1040ReviewText(text, profile = 'tax-1040-review', fixture = null) {
   if (typeof text !== 'string' || !text.trim()) {
     return { ok: false, error: 'Choose a PDF of last year’s return.' }
   }
   try {
-    const body = await apiFetch('/extract/tax-1040-text', { method: 'POST', body: { profile: 'tax-1040-review', text }, credentials: 'include' })
+    const payload = { profile, text }
+    if (fixture) payload.fixture = fixture   // dev stub hint only; the server ignores it when live
+    const body = await apiFetch('/extract/tax-1040-text', { method: 'POST', body: payload, credentials: 'include' })
     if (!body || body.ok === false) {
       const detail = body && (body.detail || body.error || body.message)
       return { ok: false, error: formatExtractError(detail) || 'Extract failed.', code: detail && typeof detail === 'object' ? detail.code : undefined }
