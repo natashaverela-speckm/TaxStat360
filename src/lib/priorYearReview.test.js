@@ -361,5 +361,13 @@ describe('real estate professional as filed', () => {
     expect(rc.title).toMatch(/while the company showed a loss/)
     expect(rc.detail).not.toMatch(/100% of total/)
     expect(m.sections.find(s => s.id === 'ordinary').findings.map(x => x.code)).not.toContain('entity-retirement')
+    // the $10,876 booked as nondeductible on the M-1 becomes a sized §162(l) finding
+    const m2 = buildPriorYearMemo(REP, { entityReturns: [{ kind: '1120s', fields: { ...SC, shareholderHealthIns: null, nondeductibleExpenses: 12903, nondeductibleHealthIns: 10876 } }] })
+    const codes = m2.sections.find(s => s.id === 'ordinary').findings.map(x => x.code)
+    expect(codes).toContain('scorp-health-nondeductible')
+    expect(codes).not.toContain('scorp-health')
+    const hx = m2.sections.find(s => s.id === 'ordinary').findings.find(x => x.code === 'scorp-health-nondeductible')
+    expect(hx.impact).toBeGreaterThan(0)
+    expect(hx.detail).toMatch(/\$10,876/)
   })
 })

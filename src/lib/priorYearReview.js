@@ -124,7 +124,9 @@ export const ENTITY_RETURN_FIELDS = Object.freeze({
     { key: 'totalIncome',             group: 'Income',         kind: 'money', label: 'Total income',                                   source: 'Form 1120-S line 6' },
     { key: 'officerCompensation',     group: 'Pay',            kind: 'money', label: 'Officer salary (W-2 from the company)',          source: 'Form 1120-S line 7 (Form 1125-E)' },
     { key: 'salariesWages',           group: 'Pay',            kind: 'money', label: 'Other employee wages',                           source: 'Form 1120-S line 8' },
-    { key: 'shareholderHealthIns',    group: 'Pay',            kind: 'money', label: 'Owner health insurance paid by the company',     source: 'K-1 box 17 code AD / statement' },
+    { key: 'shareholderHealthIns',    group: 'Pay',            kind: 'money', label: 'Owner health insurance run through wages',     source: 'K-1 box 17 code AD' },
+    { key: 'nondeductibleExpenses',   group: 'Pay',            kind: 'money', label: 'Nondeductible expenses',                        source: 'K-1 box 16 code C / Schedule M-1 line 3' },
+    { key: 'nondeductibleHealthIns',  group: 'Pay',            kind: 'money', label: 'Of those, health or life insurance',           source: 'M-1 / M-2 statement' },
     { key: 'pensionProfitSharing',    group: 'Pay',            kind: 'money', label: 'Retirement plan contributions by the company',   source: 'Form 1120-S line 17' },
     { key: 'employeeBenefits',        group: 'Pay',            kind: 'money', label: 'Employee benefit programs',                      source: 'Form 1120-S line 18' },
     { key: 'distributions',           group: 'Pay',            kind: 'money', label: 'Distributions to shareholders',                  source: 'Schedule K line 16d' },
@@ -564,7 +566,15 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
           detail: `The ${which} shows ${fmt(ownerPay)} of ${P ? 'guaranteed payments' : 'officer salary'} and no retirement-plan line. An employer contribution of up to ${fmt(employer)} would be deductible to the company, worth about ${fmt(Math.round(employer * marginal))} at your marginal rate.`,
         }))
       }
-      if (S && nf(S.shareholderHealthIns) <= 0 && nf(S.officerCompensation) > 0 && nf(f.selfEmpHealthIns) <= 0) {
+      if (S && nf(S.nondeductibleHealthIns) > 0) {
+        const amt = nf(S.nondeductibleHealthIns)
+        F.ordinary.push(finding('ordinary', 'scorp-health-nondeductible', 'Owner health insurance booked as nondeductible on the 1120-S', {
+          impact: Math.round(amt * marginal),
+          basis: 'IRC §162(l); IRS Notice 2008-1; IRC §1372; Rev. Rul. 91-26',
+          conditions: 'The policy is in the company’s name or the company reimburses the premium; the premium is added to the owner’s W-2 box 1 (not box 3/5 FICA wages); the company deducts it as wages and the owner deducts it above the line on Schedule 1 line 17. Life insurance on the owner stays nondeductible.',
+          detail: `The 1120-S carries ${fmt(amt)} of health or life insurance as a nondeductible expense (Schedule M-1 / K-1 box 16C). Run the health portion through the W-2 route and it becomes deductible to the company and to you, worth about ${fmt(Math.round(amt * marginal))} at your marginal rate.`,
+        }))
+      } else if (S && nf(S.shareholderHealthIns) <= 0 && nf(S.officerCompensation) > 0 && nf(f.selfEmpHealthIns) <= 0) {
         F.ordinary.push(finding('ordinary', 'scorp-health', 'Health insurance is not being run through the S-Corp', {
           basis: 'IRC §162(l); IRS Notice 2008-1; IRC §1372',
           conditions: 'The policy is in the company’s name or reimbursed by it, the premium is added to the owner’s W-2 box 1 (not FICA wages), and the owner deducts it above the line.',
