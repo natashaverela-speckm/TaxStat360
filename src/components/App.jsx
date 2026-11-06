@@ -374,11 +374,12 @@ const SECTION_META = {
     ogDescription: 'K-1 income, §199A QBI deduction, S-Corp SE-tax savings, quarterly estimated payments, and the Substantiation Check — all in one place.',
   },
   pricing: {
-    title: 'Pricing — TaxStat360 | Plans Starting at $79/mo',
-    description: 'TaxStat360 plans start at $79/month with a 7-day free trial. Compare Starter, Professional, and Enterprise plans — no hidden fees, cancel anytime.',
+    // SINGLE PLAN (Nov 2026): one plan, $39/mo or $399/yr — keep in step with PLAN_PRICING.
+    title: 'Pricing — TaxStat360 | $39/mo or $399/yr',
+    description: 'One TaxStat360 plan with everything included: $39/month or $399/year, 7-day free trial, no hidden fees, cancel anytime.',
     canonical: SITE_ORIGIN + '/pricing',
-    ogTitle: 'TaxStat360 Pricing — Plans from $79/mo, 7-Day Free Trial',
-    ogDescription: 'Start free for 7 days. Starter $79/mo · Professional $149/mo · Enterprise $299/mo.',
+    ogTitle: 'TaxStat360 Pricing — $39/mo or $399/yr, 7-Day Free Trial',
+    ogDescription: 'Start free for 7 days. One plan, everything included: $39/month or $399/year.',
   },
   faq: {
     title: 'FAQ — TaxStat360 | Questions About S-Corp, LLC & Real Estate Tax Planning',
@@ -473,6 +474,10 @@ const ROUTE_TITLES = {
   '/register':         'Start Free Trial | TaxStat360',
   '/verify-email':     'Verify Email | TaxStat360',
   '/dashboard':        'Dashboard | TaxStat360',
+  // PHASE 1 (simple flow): the three front-door screens.
+  '/start':            'Get Started | TaxStat360',
+  '/numbers':          'Your Numbers | TaxStat360',
+  '/result':           'Your Result | TaxStat360',
   '/calculate-tax':    'Tax Tracker | TaxStat360',
   '/calculator':       'Tax Tracker | TaxStat360',
   // AUDIT B2 (Sep 2026): "Personal Return" / /tax-return asserted return
@@ -498,6 +503,7 @@ const NOINDEX_PREFIXES  = [
   '/personal-estimate','/tax-return','/ai-analysis','/settings','/admin',
   '/onboarding','/upgrade','/integrations',
   '/carryforward-wizard',
+  '/start','/numbers','/result',   // PHASE 1 (simple flow): signed-in pages, never indexed
 ]
 
 function setNoindex(shouldNoindex) {
