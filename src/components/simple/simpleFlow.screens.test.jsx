@@ -7,7 +7,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import StartScreen from './StartScreen.jsx'
 import NumbersScreen from './NumbersScreen.jsx'
 import ResultScreen from './ResultScreen.jsx'
-import { writeEmail } from '../../utils/sessionState.js'
+import { writeEmail, writePersonalContext, readPersonalContext, readStep1State } from '../../utils/sessionState.js'
 import { hasCompletedOnboardingTour } from '../../utils/onboardingTour.js'
 import { PRIOR_YEAR_REVIEW_ENABLED } from '../../lib/priorYearReview.js'
 
@@ -130,6 +130,19 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     mountAt('/start')
     expect(screen.getByText('Open a saved record →')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/Dashboard/)
+  })
+
+  it('Start over drops the working figures so the next scenario starts clean', () => {
+    mountAt('/start')
+    fireEvent.click(screen.getByText('I run an S-Corp'))
+    fireEvent.change(screen.getByLabelText('What the business took in this year'), { target: { value: '300000' } })
+    fireEvent.click(screen.getByText('See my result →'))
+    writePersonalContext({ ...readPersonalContext(), priorYearQBILoss: 945855, w2Withheld: 5000 })
+    fireEvent.click(screen.getByText('Start over'))
+    expect(screen.getByText('Which one describes your situation?')).toBeInTheDocument()
+    expect(readStep1State().entities).toHaveLength(0)
+    expect(readPersonalContext().priorYearQBILoss).toBeFalsy()
+    expect(readPersonalContext().w2Withheld).toBeFalsy()
   })
 
   it('Advanced is one click from every screen', () => {

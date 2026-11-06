@@ -316,7 +316,9 @@ function MemoStep({ fields, entityReturns = [], onBack, onNext }) {
         )}
         {memo.scenarios && memo.scenarios.filed != null && (
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-            {[['As filed', memo.scenarios.filed], ['With REPS', memo.scenarios.reps], ['STR exception', memo.scenarios.str]].map(([l, v]) => (
+            {(memo.scenarios.repsClaimed
+              ? [['As filed (REPS)', memo.scenarios.filed], ['Without REPS', memo.scenarios.withoutReps]]
+              : [['As filed', memo.scenarios.filed], ['With REPS', memo.scenarios.reps], ['STR exception', memo.scenarios.str]]).map(([l, v]) => (
               <div key={l}><div style={{ fontSize: 11, opacity: 0.75 }}>{l}</div><div style={{ fontSize: 20, fontWeight: 800 }}>{v == null ? '—' : fmt(v)}</div></div>
             ))}
           </div>

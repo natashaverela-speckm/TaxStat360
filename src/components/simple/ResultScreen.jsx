@@ -8,7 +8,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
-import { selectSimpleResult, sortCardsBySaving } from '../../lib/simpleFlow.js'
+import { selectSimpleResult, sortCardsBySaving, resetWorkingFigures } from '../../lib/simpleFlow.js'
 import { fmt, pct, effectiveRate } from '../../utils/money.js'
 import { NAVY as N, SLATE as SL, BLUE as B, SUCCESS_TEXT } from '../../lib/theme.js'
 
@@ -117,7 +117,7 @@ export default function ResultScreen() {
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => nav('/personal-estimate')} style={{ ...linkBtn, background: B, color: '#fff', border: '1px solid ' + B }}>Save this record</button>
           <button onClick={() => nav('/ai-analysis')} style={linkBtn}>Share with my CPA (export)</button>
-          <button onClick={() => nav('/start')} style={linkBtn}>Start over</button>
+          <button onClick={() => { resetWorkingFigures(); nav('/start') }} style={linkBtn}>Start over</button>
         </div>
         <p style={{ fontSize: 12, color: SL, marginTop: 10, lineHeight: 1.5 }}>Saving and the CPA export open the full form, where every number above can be refined. Nothing you typed is lost.</p>
       </section>

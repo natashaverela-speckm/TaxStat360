@@ -21,7 +21,7 @@ import {
   readPersonalContext, writePersonalContext,
   readStep1State, writeStep1State,
   readTaxYear, writeTaxYear,
-  writeDirtyFlag, clearActiveRecord,
+  writeDirtyFlag, clearActiveRecord, clearStep1State,
 } from '../utils/sessionState.js'
 
 export const SIMPLE_FLOW_ENABLED = (() => {
@@ -200,6 +200,17 @@ export function writeSimpleFlowState(input) {
   clearActiveRecord()
   writeDirtyFlag(true)
   return entity
+}
+
+/** "Start over": drop the working figures (entities, personal context, active
+ *  record) so the next scenario does not silently inherit carryforwards,
+ *  withholding or deductions from a review or an earlier scenario. Keeps the
+ *  session owner, sign-in and tax year. */
+export function resetWorkingFigures() {
+  clearStep1State()
+  writePersonalContext({})   // manifest defaults
+  clearActiveRecord()
+  writeDirtyFlag(false)
 }
 
 /** Screen 3's inputs from the live session: engine summary + cards + the record. */
