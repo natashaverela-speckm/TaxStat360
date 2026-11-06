@@ -115,7 +115,7 @@ export default function LockedFeature({ requiredPlan = 'pro', label, minHeight =
 
   if (unlocked) return children
 
-  const planLabel = 'Toolkit Pro'
+  const planLabel = 'TaxStat360'
 
   return (
     <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', minHeight }}>

@@ -179,7 +179,7 @@ export const FINANCIAL_LABELS = {
 //
 // ⚠ Do NOT change the string VALUES — they must match what the Lambda writes.
 // Only rename the JavaScript identifiers (STARTER, PROFESSIONAL, ENTERPRISE) if needed.
-// SINGLE PLAN (Nov 2026): TaxStat360 sells ONE plan, "pro" (Toolkit Pro). "starter" is
+// SINGLE PLAN (Nov 2026): TaxStat360 is a standalone product with ONE plan, "pro". "starter" is
 // not a product — it is the no-subscription state a new account starts in and a
 // cancelled one falls back to. The API (taxstat360-api PLAN_ORDER) uses the same two names.
 export const PLAN_IDS = {
@@ -191,7 +191,7 @@ export const PLAN_IDS = {
 export const PLAN_DISPLAY_NAMES = {
   starter: 'No plan',
   basic: 'No plan',
-  pro: 'Toolkit Pro',
+  pro: 'TaxStat360',
 }
 
 // O6 FIX: One-line feature summary per plan — consumed by Onboarding.jsx SignupScreen

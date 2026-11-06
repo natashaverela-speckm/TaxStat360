@@ -11,7 +11,7 @@ import {
 describe('PLAN_PRICING — the one plan', () => {
   it('CHAR: there is exactly one priced plan, "pro"', () => {
     expect(Object.keys(PLAN_PRICING)).toEqual(['pro'])
-    expect(PLAN_DISPLAY_NAMES.pro).toBe('Toolkit Pro')
+    expect(PLAN_DISPLAY_NAMES.pro).toBe('TaxStat360')
   })
 
   it('CHAR: monthly $39, annual $399 billed once', () => {
@@ -42,6 +42,6 @@ describe('PLAN_PRICING — the one plan', () => {
   })
 
   it('CHAR: the plan-change disclosure names the plan by its display name', () => {
-    expect(upgradeDisclosure('pro', 'annual')).toMatch(/Toolkit Pro plan at \$399 every 12 months/)
+    expect(upgradeDisclosure('pro', 'annual')).toMatch(/TaxStat360 plan at \$399 every 12 months/)
   })
 })
