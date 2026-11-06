@@ -12,6 +12,7 @@ import {
   selectReturnPages,
   scorePage,
   checkedBoxesNote,
+  itemsToRows,
   TEXT_BUDGET_CHARS,
 } from './pdfTextGate.js'
 
@@ -216,6 +217,34 @@ describe('pdfTextGate (Phase 2)', () => {
       ])
       expect(note).toBe(' [checked: Single] [checked: topmostSubform[0].Page1[0].c1_5[0]]')
       expect(checkedBoxesNote([])).toBe('')
+    })
+  })
+
+  describe('row reconstruction', () => {
+    const item = (str, x, y, w = 40, h = 9) => ({ str, transform: [h, 0, 0, h, x, y], width: w, height: h })
+
+    it('puts each amount beside its label even when the PDF draws all labels first', () => {
+      // content-stream order: every label, then every amount (what tax software emits)
+      const items = [
+        item('7', 40, 700), item('Compensation of officers', 60, 700, 120),
+        item('8', 40, 688), item('Salaries and wages', 60, 688, 100),
+        item('12', 40, 676), item('Taxes and licenses', 60, 676, 100),
+        item('287,500.', 500, 700), item('15,136.', 500, 676),
+      ]
+      const text = itemsToRows(items)
+      const lines = text.split('\n')
+      expect(lines[0]).toMatch(/^7 Compensation of officers\s+287,500\.$/)
+      expect(lines[1]).toBe('8 Salaries and wages')
+      expect(lines[2]).toMatch(/^12 Taxes and licenses\s+15,136\.$/)
+    })
+
+    it('tolerates small baseline differences, keeps blank items out, and appends items with no geometry', () => {
+      const items = [item('a', 10, 100), item('b', 50, 102.5), item('  ', 70, 100), { str: 'loose' }, item('c', 10, 80)]
+      expect(itemsToRows(items)).toBe('a b\nc\nloose')
+    })
+
+    it('scores the carryover worksheet as a federal page', () => {
+      expect(scorePage('Carryover Worksheet List of items that will carryover to the 2026 tax return QBI loss carryover 945,855')).toBe(2)
     })
   })
 })
