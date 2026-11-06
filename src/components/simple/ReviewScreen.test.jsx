@@ -7,10 +7,10 @@ import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-li
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 vi.mock('../../lib/pdfTextGate.js', () => ({
-  gateTax1040PdfUpload: vi.fn(async (file) => file.name.includes('image') ? { ok: false, code: 'IMAGE_ONLY_PDF', message: 'That PDF has no text layer.' } : { ok: true, text: 'x'.repeat(100), alnum: 100 }),
+  prepareTax1040TextForUpload: vi.fn(async (file) => file.name.includes('image') ? { ok: false, code: 'IMAGE_ONLY_PDF', message: 'That PDF has no text layer.' } : { ok: true, text: 'x'.repeat(100), alnum: 100, redactedCount: 2 }),
 }))
 vi.mock('../../lib/carryforwardExtractClient.js', () => ({
-  extractTax1040Review: vi.fn(async () => ({
+  extractTax1040ReviewText: vi.fn(async () => ({
     ok: true,
     result: {
       ok: true, profile: 'tax-1040-review',

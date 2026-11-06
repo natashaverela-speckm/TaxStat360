@@ -58,6 +58,33 @@ export async function extractTax1040Carryforward(file) {
 }
 
 /**
+ * PHASE 2 (Prior-Year Review): send the browser-masked text layer, never the PDF.
+ * Pair with prepareTax1040TextForUpload() — the SSN is masked on the device and
+ * the file itself is never transmitted. Same response contract as the file route.
+ * @param {string} text  masked text layer from prepareTax1040TextForUpload
+ * @returns {Promise<{ ok: true, result: { fields: object, confidence?: object, warnings?: string[], evidence?: object } } | { ok: false, error: string, code?: string }>}
+ */
+export async function extractTax1040ReviewText(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return { ok: false, error: 'Choose a PDF of last year’s return.' }
+  }
+  try {
+    const body = await apiFetch('/extract/tax-1040-text', { method: 'POST', body: { profile: 'tax-1040-review', text }, credentials: 'include' })
+    if (!body || body.ok === false) {
+      const detail = body && (body.detail || body.error || body.message)
+      return { ok: false, error: formatExtractError(detail) || 'Extract failed.', code: detail && typeof detail === 'object' ? detail.code : undefined }
+    }
+    if (body.evidence && body.evidence.retained === true) {
+      return { ok: false, error: 'Extract refused — tax documents must not be retained. Enter the figures manually.', code: 'EVIDENCE_RETAINED' }
+    }
+    return { ok: true, result: body }
+  } catch (e) {
+    const detail = e && e.body && (e.body.detail || e.body.error || e.body.message)
+    return { ok: false, error: String(formatExtractError(detail) || (e && e.message) || 'Could not reach extract service.'), code: detail && typeof detail === 'object' ? detail.code : undefined }
+  }
+}
+
+/**
  * PHASE 2 (Prior-Year Review): the wider profile. Same endpoint, same gates, same
  * delete-after-processing rule; the server returns the review field set plus a
  * per-field confidence map.
