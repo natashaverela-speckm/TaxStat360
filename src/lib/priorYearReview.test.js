@@ -347,4 +347,17 @@ describe('real estate professional as filed', () => {
     expect(rc.link).toMatch(/repsrecord/)
     expect(m.scenarios.filed).toBe(m.scenarios.reps)
   })
+
+  it('with the 1120-S showing a funded pension and a loss year, no SEP card and a loss-year comp finding', () => {
+    const SC = { taxYear: 2025, shareholderCount: 1, grossReceipts: 388733, totalIncome: 387549, officerCompensation: 287500, salariesWages: 0,
+      rentsPaid: 0, taxesAndLicenses: 15136, depreciation: 11328, pensionProfitSharing: 70000, otherDeductions: 128611, totalDeductions: 681138,
+      ordinaryBusinessIncome: -293589, shareholderHealthIns: 10876, distributions: 183482, totalAssets: 116626, vehicleOrTravel: 6776, homeOfficeOrAccountablePlan: false }
+    const m = buildPriorYearMemo(REP, { entityReturns: [{ kind: '1120s', fields: SC }] })
+    const more = m.sections.find(s => s.id === 'more')?.findings.map(x => x.title) || []
+    expect(more.filter(t => /^(SEP-IRA|Solo 401)/.test(t))).toEqual([])
+    const rc = m.sections.find(s => s.id === 'comp').findings.find(x => x.code === 'reasonable-comp')
+    expect(rc.title).toMatch(/while the company showed a loss/)
+    expect(rc.detail).not.toMatch(/100% of total/)
+    expect(m.sections.find(s => s.id === 'ordinary').findings.map(x => x.code)).not.toContain('entity-retirement')
+  })
 })

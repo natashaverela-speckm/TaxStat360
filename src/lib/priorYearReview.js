@@ -683,7 +683,16 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
     const sal = S ? nf(S.officerCompensation) : nf(f.officerW2)
     const inc = S ? nf(S.ordinaryBusinessIncome) : nf(f.k1ScorpOrdinary)
     const rc = calcReasonableCompCore(sal, inc)
-    if (rc.applicable) {
+    if (S && inc <= 0 && sal > 0) {
+      // A loss year: the ratio test has no meaning. State what the return shows and
+      // the question it raises, without a number the engine cannot stand behind.
+      const dist = nf(S.distributions)
+      F.comp.push(finding('comp', 'reasonable-comp', 'Officer salary paid while the company showed a loss', {
+        basis: 'Rev. Rul. 74-44; Treas. Reg. §1.162-7; IRC §3121 (FICA wages)',
+        conditions: 'Reasonable compensation is a floor the IRS enforces against salaries set too low; there is no requirement to pay salary the company cannot fund from profit. Salary should still reflect the services performed and be documented.',
+        detail: `Per the 1120-S, officer salary was ${fmt(sal)} and the company showed a ${fmt(Math.abs(inc))} ordinary loss${dist > 0 ? `, with ${fmt(dist)} taken as distributions` : ''}. Payroll tax ran on the full salary. Whether the salary level, or its timing within the year, reflects the services and the company's ability to pay is worth a conversation with the tax pro.`,
+      }))
+    } else if (rc.applicable) {
       const tooHigh = rc.ratio > 0.7 && inc > 0
       const dist = S ? nf(S.distributions) : 0
       F.comp.push(finding('comp', 'reasonable-comp', rc.triggered ? 'Officer salary is low relative to S-Corp income' : tooHigh ? 'Officer salary is high relative to S-Corp income' : 'Officer salary is within the range practitioners cite', {
@@ -733,10 +742,13 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
   // 7. Everything else the engine already finds, from the prior-year record.
   const cards = buildOpportunities(rec)
   const covered = new Set(['Hire Your Children', 'Home Office Deduction', 'Augusta Rule — IRC §280A(g)', 'Bonus Depreciation', 'Track Your Real Estate Hours', '§179 Equipment Deduction'])
+  // The engine's SEP / Solo 401(k) cards are not repeated when the review already
+  // sized an employer plan, nor when the entity return shows one funded.
   const entityRetire = F.ordinary.some(x => x.code === 'entity-retirement')
+  const planFunded = (S && nf(S.pensionProfitSharing) > 0) || (P && nf(P.retirementPlans) > 0) || (C && nf(C.pensionProfitSharing) > 0)
   for (const c of cards.opportunities) {
     if (covered.has(c.title)) continue
-    if (entityRetire && /^(SEP-IRA|Solo 401\(k\))/.test(c.title)) continue
+    if ((entityRetire || planFunded) && /^(SEP-IRA|Solo 401\(k\))/.test(c.title)) continue
     F.more.push(finding('more', c.title, c.title, { impact: c.saving || null, detail: c.detail, conditions: c.howTo }))
   }
   if (hasSchedC && nf(f.schedCNet) > 40000) {
