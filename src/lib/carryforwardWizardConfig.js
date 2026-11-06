@@ -6,7 +6,7 @@ export const GLOBAL_DISCLAIMER =
   'Please check with your tax professional before relying on any numbers as accurate.'
 
 /** Phase 3 applies plan gate; constant ready for LockedFeature integration. */
-export const CARRYFORWARD_WIZARD_MIN_PLAN = 'professional'
+export const CARRYFORWARD_WIZARD_MIN_PLAN = 'pro'   // SINGLE PLAN (Nov 2026): the one paid plan
 
 /**
  * PDF prefill from prior-year Form 1040 (text PDF only).

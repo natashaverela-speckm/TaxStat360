@@ -1,5 +1,4 @@
 import { PLAN_ENTITY_LIMITS } from '../lib/constants.js'
-import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 import { getUserPlan } from '../components/LockedFeature.jsx'
 import { isRealEstateEntity } from './entityPredicates.js'
 
@@ -14,9 +13,6 @@ export function countRealEstateEntities(entities) {
 }
 
 export function entityLimitsForPlan(plan) {
-  // PHASE 1b (single plan): one paid plan, no entity caps. Starter (the lapsed
-  // fallback) keeps its cap so a cancelled account cannot keep adding entities.
-  if (SIMPLE_FLOW_ENABLED && (plan === 'professional' || plan === 'enterprise')) return PLAN_ENTITY_LIMITS.enterprise
   return PLAN_ENTITY_LIMITS[plan] || PLAN_ENTITY_LIMITS.starter
 }
 

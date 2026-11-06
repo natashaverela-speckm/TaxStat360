@@ -4,28 +4,28 @@ import { clearInvalidSession } from '../utils/sessionAuth.js'
 import { NAVY as N, BLUE as B } from '../lib/theme.js'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
-import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 
 // ─── Plan Constants & Normalization ──────────────────────────────────────────
 // Single source of truth for plan IDs. ALL plan-gate code must import from here.
 // Never compare against raw localStorage values — always use getUserPlan() which
 // normalises legacy names via PLAN_ALIASES transparently.
 
+// SINGLE PLAN (Nov 2026): "pro" is the plan; "starter" is no subscription.
 export const PLAN_IDS = {
-  STARTER:      'starter',
-  PROFESSIONAL: 'professional',
-  ENTERPRISE:   'enterprise',
+  STARTER: 'starter',
+  PRO:     'pro',
 }
 
-// Legacy plan name aliases — maps old DB/Lambda values to canonical PLAN_IDS.
-// "basic" is the pre-migration DB value for Starter accounts (C-01).
+// Plan name aliases — maps old DB/API values to canonical PLAN_IDS. Every retired
+// paid tier resolves to the one paid plan; "basic" was the pre-migration Starter value.
 // Add new aliases here; never scatter alias logic across other components.
 const PLAN_ALIASES = {
-  'basic':     PLAN_IDS.STARTER,
-  'pro':       PLAN_IDS.PROFESSIONAL,
-  'expert':    PLAN_IDS.ENTERPRISE,
-  'elite':     PLAN_IDS.ENTERPRISE,
-  'essential': PLAN_IDS.ENTERPRISE,
+  'basic':        PLAN_IDS.STARTER,
+  'professional': PLAN_IDS.PRO,
+  'enterprise':   PLAN_IDS.PRO,
+  'expert':       PLAN_IDS.PRO,
+  'elite':        PLAN_IDS.PRO,
+  'essential':    PLAN_IDS.PRO,
 }
 
 // normalizePlanId — converts any raw plan string (from localStorage, Lambda,
@@ -77,22 +77,19 @@ export async function refreshPlanFromServer() {
   return getUserPlan()
 }
 
+/** True when the account is on the (one) paid plan. */
 export function isPro() {
-  const p = getUserPlan()
-  return p === 'professional' || p === 'enterprise'
+  return getUserPlan() === PLAN_IDS.PRO
 }
 
+/** Kept for call sites written against the old tiers: every paid account has every feature. */
 export function isEnterprise() {
-  // PHASE 1b (single plan): the API now gates the former Enterprise-only reports on
-  // "any paid plan", so the UI matches — every paid account has every feature. The
-  // tier distinction only survives when the simple flow is switched off.
-  if (SIMPLE_FLOW_ENABLED) return isPro()
-  return getUserPlan() === 'enterprise'
+  return isPro()
 }
 
 export function canAccess(requiredPlan) {
-  const rank = { starter: 0, professional: 1, enterprise: 2 }
-  return (rank[getUserPlan()] ?? 0) >= (rank[requiredPlan] ?? 0)
+  const rank = { starter: 0, pro: 1 }
+  return (rank[getUserPlan()] ?? 0) >= (rank[normalizePlanId(requiredPlan)] ?? 0)
 }
 
 // ─── LockedFeature Component ──────────────────────────────────────────────────
@@ -104,7 +101,7 @@ export function canAccess(requiredPlan) {
 //   </LockedFeature>
 //
 // Props:
-//   requiredPlan  — 'professional' | 'enterprise'  (default: 'professional')
+//   requiredPlan  — 'pro' (legacy 'professional' / 'enterprise' resolve to it)
 //   label         — Feature name shown in the overlay
 //   minHeight     — Minimum height for the locked area (default: 120)
 //   children      — The feature to render (shown blurred when locked)
@@ -112,13 +109,13 @@ export function canAccess(requiredPlan) {
 // If the user's plan meets the requirement, children render normally.
 // If not, a blurred preview with an upgrade CTA is shown instead.
 
-export default function LockedFeature({ requiredPlan = 'professional', label, minHeight = 120, children }) {
+export default function LockedFeature({ requiredPlan = 'pro', label, minHeight = 120, children }) {
   const nav = useNavigate()
   const unlocked = canAccess(requiredPlan)
 
   if (unlocked) return children
 
-  const planLabel = requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)
+  const planLabel = 'TaxStat360'
 
   return (
     <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', minHeight }}>

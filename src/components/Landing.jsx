@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Nav from './Nav'
 import Footer from './Footer'
 import Icon from './Icon'
-import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice, PLAN_ENTITY_LIMITS } from '../lib/constants'
+import { INTEGRATIONS, CTA_LABEL, CTA_COPY_FULL, CTA_COPY_SHORT, DISCLAIMER_SHORT, FEATURE_AUDIT_RISK_SCAN, FEATURE_WHATIF_SIMULATOR, PLAN_PRICING, fmtPlanPrice, PLAN_ENTITY_LIMITS, PLAN_DISPLAY_NAMES, ANNUAL_DISCOUNT_LABEL } from '../lib/constants'
 // AUDIT B2/B3/B4/B7 (Sep 2026) — compliance-reviewed marketing copy.
 import {
   CREDENTIAL_HEADLINE as CREDENTIAL,
@@ -244,7 +244,7 @@ export default function Landing() {
               desc: 'Have a day job and a business? We combine all income sources for your complete tax picture.' },
             { icon: 'layers', label: 'Multi',
               title: 'Multiple Entities',
-              desc: 'Run multiple businesses? Our Enterprise plan tracks each entity and shows your consolidated federal tax exposure across all of them in one view.' },
+              desc: 'Run multiple businesses? TaxStat360 tracks each entity and shows your consolidated federal tax exposure across all of them in one view.' },
           ].map((e, i) => (
             <div
               key={i}
@@ -360,7 +360,7 @@ export default function Landing() {
             { q: 'What accounting software does TaxStat360 connect to?',
               a: "TaxStat360 integrates with QuickBooks Online, Xero, Wave, and FreshBooks. Connect your account and we pull your profit and loss totals automatically — no manual data entry needed. If you don't use one of these platforms, or prefer not to connect, you can enter your gross receipts and expenses directly in the calculator. Manual entry takes under 2 minutes and gives you the same full analysis. More integrations are coming soon." },
             { q: 'Can I use TaxStat360 if I have multiple businesses?',
-              a: `Entity capacity depends on your plan: Starter covers ${PLAN_ENTITY_LIMITS.starter.business} business plus up to ${PLAN_ENTITY_LIMITS.starter.realEstate} rental properties; Professional covers up to ${PLAN_ENTITY_LIMITS.professional.business} businesses with unlimited rentals; and Enterprise covers unlimited businesses and rentals, with a consolidated federal tax view across all of them in one place.` },
+              a: `Yes. The plan covers unlimited businesses and unlimited rental properties, with a consolidated federal tax view across all of them in one place.` },
             { q: 'Is my financial data secure?',
               // INDEPENDENT REVIEW FIX (Jul 31, 2026) — this answer previously said data is
               // "never sold or shared with third parties," which overstates what Privacy.jsx
@@ -395,7 +395,7 @@ export default function Landing() {
       {/* ─── PRICING ──────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ scrollMarginTop: 72, padding: '32px 24px', textAlign: 'center', background: '#F8FAFC' }}>
         <p style={EYEBROW}>Simple, Transparent Pricing</p>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>Plans for Every Business</h2>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>One plan. Everything included.</h2>
         <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>{CTA_COPY_SHORT}</p>
 
         {/* UX-07: Planning-only disclaimer at the top of the pricing section.
@@ -422,102 +422,64 @@ export default function Landing() {
             <div style={{ position: 'absolute', top: 3, left: isAnnual ? 27 : 3, width: 20, height: 20, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
           </div>
           <span style={{ fontSize: 14, fontWeight: isAnnual ? 700 : 500, color: isAnnual ? '#0D1B3E' : '#64748b' }}>Annual</span>
-          <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>Save 2 months</span>
+          <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>{ANNUAL_DISCOUNT_LABEL}</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, maxWidth: 960, margin: '0 auto' }}>
+        {/* SINGLE PLAN (Nov 2026): one card, no comparison grid. Everything the
+            product does is in the one plan; the feature list is the union of the
+            former tiers minus anything the product never shipped (AUDIT H10). */}
+        <div style={{ maxWidth: 520, margin: '0 auto' }}>
           {[
             {
-              // D-06: derived from PLAN_PRICING — single price source (strings identical to prior literals).
-              name: 'Starter', price: fmtPlanPrice(PLAN_PRICING.starter.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.starter.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.starter.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.starter.annualSavings),
-              highlight: false,
-              desc: 'Know what you owe — every month, not just in April.',
+              name: PLAN_DISPLAY_NAMES.pro, price: fmtPlanPrice(PLAN_PRICING.pro.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.pro.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.pro.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.pro.annualSavings),
+              highlight: true,
+              desc: 'See what you\'re on track to owe, the moves that lower it, and the paperwork your tax pro will ask for \u2014 all year, not just in April.',
               features: [
-                _entityLimitLabel('starter'),
+                _entityLimitLabel('pro'),
                 'Year-round federal tax liability tracker',
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
                 'Schedule C (sole props & SMLLCs)',
                 'Quarterly estimated payments',
-                // AUDIT B2: was 'Personal tax return (W-2 + entity income)'.
                 FEATURE_PERSONAL_ESTIMATE,
-                '1 accounting software integration',
-              ],
-            },
-            {
-              name: 'Professional', price: fmtPlanPrice(PLAN_PRICING.professional.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.professional.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.professional.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.professional.annualSavings),
-              highlight: true,
-              desc: 'AI that catches problems before they become expensive mistakes.',
-              // #8 FIX: surfaced "Ask Aria" (the in-app AI assistant) in the marketing copy.
-              // Previously Aria shipped in the product but was only named in the Privacy Policy.
-              // NOTE: placed on Professional+ to match the other AI features. If Aria is actually
-              // available on Starter too, move this bullet up to the Starter feature list and to
-              // the Starter column in the comparison table below.
-              features: [
-                _entityLimitLabel('professional'),
-                'Everything in Starter plus:',
-                FEATURE_AUDIT_RISK_SCAN,
                 FEATURE_WHATIF_SIMULATOR,
-                'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons — for CPA review)',
+                FEATURE_AUDIT_RISK_SCAN,
+                'Ask Aria \u2014 AI tax assistant',
+                'One-Click CPA Export Pack (calculation summary, input assumptions & scenario comparisons \u2014 for CPA review)',
                 'Explainable AI: Why This Number?',
-                'Ask Aria — AI tax assistant',
-                'Unlimited accounting integrations',
+                'Multi-entity consolidated tax view',
+                'Auto-Generated CPA Briefing \u2014 planning summary for CPA discussion (not for filing)',
+                FEATURE_POSITION_DOCS,
+                'QuickBooks, Xero, Wave and FreshBooks sync',
                 'Priority support',
               ],
             },
-            {
-              name: 'Enterprise', price: fmtPlanPrice(PLAN_PRICING.enterprise.monthly), annualPrice: fmtPlanPrice(PLAN_PRICING.enterprise.annualMonthly), annualTotal: fmtPlanPrice(PLAN_PRICING.enterprise.annualTotal), annualSavings: fmtPlanPrice(PLAN_PRICING.enterprise.annualSavings),
-              highlight: false,
-              desc: 'Built for owners running multiple businesses or entities.',
-              // AUDIT B7 (Sep 2026): "IRS Notice-Response Templates" is gone. Drafting a
-              // taxpayer-specific communication to the IRS is practice before the IRS
-              // under 31 C.F.R. §10.2(a)(4), and "(documentation — not representation)"
-              // was a label rather than a functional limit. The SHIPPED feature
-              // (AIAnalysis.jsx "Position Documentation") never drafted correspondence —
-              // this brings the marketing down to what the product actually does.
-              // The explicit limit renders under the card; see POSITION_DOCS_LIMIT_NOTE.
-              features: [
-                _entityLimitLabel('enterprise'),
-                'Everything in Professional plus:',
-                'Multi-entity consolidated tax view',
-                'Auto-Generated CPA Briefing — planning summary for CPA discussion (not for filing)',
-                FEATURE_POSITION_DOCS,
-              ],
-            },
           ].map((p, i) => (
-            <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: p.highlight ? 'none' : '2px solid #e2e8f0', background: p.highlight ? N : '#fff', color: p.highlight ? '#fff' : N, boxShadow: p.highlight ? '0 12px 40px rgba(13,27,62,0.2)' : '0 2px 8px rgba(0,0,0,0.04)', transform: p.highlight ? 'scale(1.04)' : 'none' }}>
-              <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: p.highlight ? '#93b4d4' : '#64748b' }}>{p.name}</p>
-
-              {/* UX-04 FIX: Annual pricing now shows:
-                  - The discounted per-month rate (e.g. $66/mo)
-                  - A strikethrough of the original monthly price ($79/mo) beside it
-                  - The actual annual total billed and the yearly savings amount
-                  Previously the toggle just showed the discounted rate with an opacity-dimmed
-                  "billed X/yr" line — users had to calculate the savings themselves. */}
+            <div key={i} style={{ borderRadius: 18, padding: '36px 28px', border: 'none', background: N, color: '#fff', boxShadow: '0 12px 40px rgba(13,27,62,0.2)', textAlign: 'left' }}>
+              <p style={{ fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, color: '#93b4d4' }}>{p.name}</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
                 <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1 }}>
                   {isAnnual ? p.annualPrice : p.price}<span style={{ fontSize: 15, fontWeight: 500 }}>/mo</span>
                 </div>
                 {isAnnual && (
-                  <span style={{ fontSize: 14, color: p.highlight ? 'rgba(147,180,212,0.7)' : '#94a3b8', textDecoration: 'line-through', lineHeight: 1 }}>
+                  <span style={{ fontSize: 14, color: 'rgba(147,180,212,0.7)', textDecoration: 'line-through', lineHeight: 1 }}>
                     {p.price}/mo
                   </span>
                 )}
               </div>
               {isAnnual && (
-                <div style={{ fontSize: 12, color: p.highlight ? '#86efac' : '#16a34a', fontWeight: 600, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, color: '#86efac', fontWeight: 600, marginBottom: 8 }}>
                   billed {p.annualTotal}/yr &mdash; save {p.annualSavings}/yr
                 </div>
               )}
-
-              <p style={{ fontSize: 14, marginBottom: 24, color: p.highlight ? '#93b4d4' : '#64748b', lineHeight: 1.5 }}>{p.desc}</p>
+              <p style={{ fontSize: 14, marginBottom: 24, color: '#93b4d4', lineHeight: 1.5 }}>{p.desc}</p>
               <button
-                onClick={() => nav('/signup?plan=' + p.name.toLowerCase() + '&billing=' + billing)}
-                style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: p.highlight ? '2px solid #fff' : '2px solid ' + N, background: p.highlight ? 'transparent' : N, color: '#fff', marginBottom: 24 }}
+                onClick={() => nav('/signup?plan=pro&billing=' + billing)}
+                style={{ width: '100%', padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, cursor: 'pointer', border: '2px solid #fff', background: 'transparent', color: '#fff', marginBottom: 24 }}
               >{CTA_LABEL}</button>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, textAlign: 'left' }}>
                 {p.features.map((f, j) => (
-                  <li key={j} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'flex-start', gap: 8, color: p.highlight ? '#d1e0f5' : '#475569', borderTop: j === 0 ? 'none' : '1px solid ' + (p.highlight ? 'rgba(255,255,255,0.08)' : '#f1f5f9') }}>
-                    <span style={{ color: p.highlight ? '#93b4d4' : B, flexShrink: 0 }}>&#10003;</span>{f}
+                  <li key={j} style={{ fontSize: 13, padding: '7px 0', display: 'flex', alignItems: 'flex-start', gap: 8, color: '#d1e0f5', borderTop: j === 0 ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ color: '#93b4d4', flexShrink: 0 }}>&#10003;</span>{f}
                   </li>
                 ))}
               </ul>
@@ -525,7 +487,7 @@ export default function Landing() {
           ))}
         </div>
 
-        {/* AUDIT B7 (Sep 2026): explicit, unmissable limit on the Enterprise
+        {/* AUDIT B7 (Sep 2026): explicit, unmissable limit on the
             documentation feature. It renders in the pricing section — where the
             purchase decision is made — not only in the Terms. 31 C.F.R. §10.2(a)(4)
             / §10.3. Do not move this into a tooltip or an accordion. */}
@@ -537,102 +499,10 @@ export default function Landing() {
           <strong>About the {FEATURE_POSITION_DOCS_SHORT}:</strong> {POSITION_DOCS_LIMIT_NOTE}
         </p>
 
-        <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial on all plans &middot; No charge until trial ends &middot; Cancel anytime in Settings</p>
+        <p style={{ marginTop: 32, fontSize: 13, color: '#94a3b8' }}>7-day free trial &middot; No charge until trial ends &middot; Cancel anytime in Settings</p>
         <p style={{ marginTop: 8, fontSize: 11, color: '#cbd5e1' }}>
           Cancel before day 7 for no charge. No refunds on completed billing periods. Manage or cancel anytime via your account settings.
         </p>
-
-        {/* ─── PLAN COMPARISON TABLE ────────────────────────────────────────── */}
-        <div style={{ marginTop: 56, overflowX: 'auto' }}>
-          <p style={{ ...EYEBROW, color: B, marginBottom: 12 }}>Full Comparison</p>
-          <table style={{ width: '100%', maxWidth: 860, margin: '0 auto', borderCollapse: 'collapse', fontSize: 14, textAlign: 'left' }}>
-            <thead>
-              <tr>
-                <th style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 600, borderBottom: '2px solid #e2e8f0', width: '44%' }}></th>
-                {[
-                  { name: 'Starter', price: fmtPlanPrice(PLAN_PRICING.starter.monthly), highlight: false },
-                  { name: 'Professional', price: fmtPlanPrice(PLAN_PRICING.professional.monthly), highlight: true },
-                  { name: 'Enterprise', price: fmtPlanPrice(PLAN_PRICING.enterprise.monthly), highlight: false },
-                ].map(plan => (
-                  <th key={plan.name} style={{
-                    padding: '12px 16px', textAlign: 'center', borderBottom: '2px solid #e2e8f0',
-                    background: plan.highlight ? '#eff6ff' : 'transparent',
-                    borderRadius: plan.highlight ? '8px 8px 0 0' : 0,
-                    color: plan.highlight ? B : N, fontWeight: 700,
-                  }}>
-                    <div style={{ fontSize: 15 }}>{plan.name}</div>
-                    <div style={{ fontSize: 12, fontWeight: 400, color: '#64748b', marginTop: 2 }}>{plan.price}/mo</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { group: 'Tax Calculations', rows: [
-                  ['Year-round federal tax liability tracker', true, true, true],
-                  ['K-1 income (S-Corps, partnerships, Multi-Member LLCs)', true, true, true],
-                  ['Schedule C (sole props & SMLLCs)',       true,  true,  true],
-                  ['Quarterly estimated payments',           true,  true,  true],
-                  // AUDIT B2: label must match the pricing card exactly.
-                  [FEATURE_PERSONAL_ESTIMATE,                true,  true,  true],
-                  ['Multi-entity consolidated tax view',     false, false, true],
-                ]},
-                { group: 'AI & Analysis', rows: [
-                  [FEATURE_AUDIT_RISK_SCAN,                      false, true,  true],
-                  [FEATURE_WHATIF_SIMULATOR,         false, true,  true],
-                  ['Explainable AI: Why This Number?',       false, true,  true],
-                  // #8 FIX: Ask Aria added to the comparison table (Professional+). If Aria
-                  // ships on Starter too, change this row to [..., true, true, true].
-                  ['Ask Aria — AI tax assistant',            false, true,  true],
-                ]},
-                { group: 'Integrations', rows: [
-                  ['Accounting software integration',         true,  true,  true],
-                  ['Unlimited accounting integrations',      false, true,  true],
-                ]},
-                { group: 'CPA Tools', rows: [
-                  ['One-Click CPA Export Pack',              false, true,  true],
-                  ['Auto-Generated CPA Briefing',           false, false, true],
-                  // AUDIT B7: the old label carried no qualifier here at all, while the
-                  // tier card had one — the comparison table is where a buyer actually
-                  // reads. Same string as the card now; the limit note renders below.
-                  [FEATURE_POSITION_DOCS_SHORT,            false, false, true],
-                ]},
-                { group: 'Support', rows: [
-                  ['Priority support',                       false, true,  true],
-                ]},
-              ].map(({ group, rows }) => (
-                <React.Fragment key={group}>
-                  <tr>
-                    <td style={{
-                      padding: '16px 16px 6px', fontSize: 11, fontWeight: 700,
-                      letterSpacing: '0.08em', textTransform: 'uppercase',
-                      color: '#94a3b8', borderTop: '2px solid #f1f5f9',
-                    }}>{group}</td>
-                    <td style={{ background: 'transparent', borderTop: '2px solid #f1f5f9' }} />
-                    <td style={{ background: '#eff6ff', borderTop: '2px solid #dbeafe' }} />
-                    <td style={{ background: 'transparent', borderTop: '2px solid #f1f5f9' }} />
-                  </tr>
-                  {rows.map(([label, s, p, e], i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '11px 16px', color: '#374151', fontSize: 13 }}>{label}</td>
-                      {[s, p, e].map((val, j) => (
-                        <td key={j} style={{
-                          padding: '11px 16px', textAlign: 'center',
-                          background: j === 1 ? '#eff6ff' : 'transparent',
-                          color: val === true ? B : '#cbd5e1',
-                          fontWeight: val === true ? 700 : 400,
-                          fontSize: val === true ? 16 : 13,
-                        }}>
-                          {val === true ? '✓' : val === false ? '—' : val}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </section>
 
       {/* ─── BOTTOM CTA ───────────────────────────────────────────────────────── */}

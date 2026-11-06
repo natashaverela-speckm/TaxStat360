@@ -19,8 +19,8 @@ describe('carryforwardWizardConfig', () => {
     expect(GLOBAL_DISCLAIMER.length).toBeGreaterThan(0)
   })
 
-  it('CHAR: default min plan is professional (Phase 3 gate)', () => {
-    expect(CARRYFORWARD_WIZARD_MIN_PLAN).toBe('professional')
+  it('CHAR: min plan is the one paid plan (single plan, Nov 2026)', () => {
+    expect(CARRYFORWARD_WIZARD_MIN_PLAN).toBe('pro')
   })
 
   it('CHAR: PDF prefill upload card enabled by default (Phase 5)', () => {

@@ -1,50 +1,47 @@
-// src/planPricing.test.js
-//
-// D-06 (Batch 6, Jul 2026) — display-freeze characterization for plan pricing.
-// PLAN_PRICING is now the single source for every price customers see; these
-// CHAR tests pin the EXACT strings that rendered before the derivation, so the
-// wiring is provably display-identical — and any future price change fails
-// here first, making a price change a conscious, test-acknowledged act.
-
+// Display-freeze test for subscription pricing (D-06 single source).
+// SINGLE PLAN (Nov 2026): one plan, two prices. These strings are what customers
+// see on Landing, Onboarding and Upgrade and what the API's trial email states;
+// a price change must be a conscious, test-acknowledged act — update here too.
 import { describe, it, expect } from 'vitest'
-import { PLAN_PRICING, fmtPlanPrice, PRICE_STARTER_MONTHLY, PRICE_PROFESSIONAL_MONTHLY, PRICE_ENTERPRISE_MONTHLY } from './constants.js'
+import {
+  PLAN_PRICING, fmtPlanPrice, PRICE_PRO_MONTHLY, PRICE_PRO_ANNUAL_TOTAL,
+  ANNUAL_DISCOUNT_LABEL, PLAN_DISPLAY_NAMES, PLAN_ENTITY_LIMITS, renewalDisclosure, upgradeDisclosure,
+} from './constants.js'
 
-describe('PLAN_PRICING — derived figures match the pre-derivation literals', () => {
-
-  it('CHAR: monthly prices — $79 / $149 / $299', () => {
-    expect(fmtPlanPrice(PLAN_PRICING.starter.monthly)).toBe('$79')
-    expect(fmtPlanPrice(PLAN_PRICING.professional.monthly)).toBe('$149')
-    expect(fmtPlanPrice(PLAN_PRICING.enterprise.monthly)).toBe('$299')
+describe('PLAN_PRICING — the one plan', () => {
+  it('CHAR: there is exactly one priced plan, "pro"', () => {
+    expect(Object.keys(PLAN_PRICING)).toEqual(['pro'])
+    expect(PLAN_DISPLAY_NAMES.pro).toBe('TaxStat360')
   })
 
-  it('CHAR: annual-effective monthly (10 billed ÷ 12, rounded) — $66 / $124 / $249', () => {
-    expect(fmtPlanPrice(PLAN_PRICING.starter.annualMonthly)).toBe('$66')
-    expect(fmtPlanPrice(PLAN_PRICING.professional.annualMonthly)).toBe('$124')
-    expect(fmtPlanPrice(PLAN_PRICING.enterprise.annualMonthly)).toBe('$249')
+  it('CHAR: monthly $39, annual $399 billed once', () => {
+    expect(PRICE_PRO_MONTHLY).toBe(39)
+    expect(PRICE_PRO_ANNUAL_TOTAL).toBe(399)
+    expect(fmtPlanPrice(PLAN_PRICING.pro.monthly)).toBe('$39')
+    expect(fmtPlanPrice(PLAN_PRICING.pro.annualTotal)).toBe('$399')
   })
 
-  it('CHAR: annual totals with comma formatting — $790 / $1,490 / $2,990', () => {
-    expect(fmtPlanPrice(PLAN_PRICING.starter.annualTotal)).toBe('$790')
-    expect(fmtPlanPrice(PLAN_PRICING.professional.annualTotal)).toBe('$1,490')
-    expect(fmtPlanPrice(PLAN_PRICING.enterprise.annualTotal)).toBe('$2,990')
+  it('CHAR: annual shown per month as $33 and the savings line is one formula everywhere — $69/yr', () => {
+    expect(fmtPlanPrice(PLAN_PRICING.pro.annualMonthly)).toBe('$33')
+    expect(PLAN_PRICING.pro.annualSavings).toBe(39 * 12 - 399)
+    expect(fmtPlanPrice(PLAN_PRICING.pro.annualSavings)).toBe('$69')
+    expect(ANNUAL_DISCOUNT_LABEL).toBe('Save $69/yr')
   })
 
-  it('CHAR: Landing savings figures (monthly × 2) — $158 / $298 / $598', () => {
-    expect(fmtPlanPrice(PLAN_PRICING.starter.annualSavings)).toBe('$158')
-    expect(fmtPlanPrice(PLAN_PRICING.professional.annualSavings)).toBe('$298')
-    expect(fmtPlanPrice(PLAN_PRICING.enterprise.annualSavings)).toBe('$598')
+  it('CHAR: no subscription keeps a small entity cap; the plan has none', () => {
+    expect(PLAN_ENTITY_LIMITS.starter).toEqual({ business: 1, realEstate: 3 })
+    expect(PLAN_ENTITY_LIMITS.pro.business).toBe(Number.POSITIVE_INFINITY)
+    expect(PLAN_ENTITY_LIMITS.pro.realEstate).toBe(Number.POSITIVE_INFINITY)
   })
 
-  it('CHAR (OBS-9 record): Upgrade page derives DIFFERENT savings — (monthly−annual)×12', () => {
-    // Pre-existing divergence, preserved: Upgrade shows $156/$300/$600.
-    expect((PLAN_PRICING.starter.monthly - PLAN_PRICING.starter.annualMonthly) * 12).toBe(156)
-    expect((PLAN_PRICING.professional.monthly - PLAN_PRICING.professional.annualMonthly) * 12).toBe(300)
-    expect((PLAN_PRICING.enterprise.monthly - PLAN_PRICING.enterprise.annualMonthly) * 12).toBe(600)
+  it('SPEC: §17602 renewal disclosure states the amount and cadence the customer agreed to', () => {
+    expect(renewalDisclosure('pro', 'monthly')).toMatch(/charged \$39, and then \$39 every month/)
+    expect(renewalDisclosure('pro', 'annual')).toMatch(/charged \$399, and then \$399 every 12 months/)
+    // an unknown plan name never produces a $0 disclosure
+    expect(renewalDisclosure('professional', 'monthly')).toMatch(/\$39/)
   })
 
-  it('CHAR: PLAN_PRICING derives from the PRICE_* constants (the single source)', () => {
-    expect(PLAN_PRICING.starter.monthly).toBe(PRICE_STARTER_MONTHLY)
-    expect(PLAN_PRICING.professional.monthly).toBe(PRICE_PROFESSIONAL_MONTHLY)
-    expect(PLAN_PRICING.enterprise.monthly).toBe(PRICE_ENTERPRISE_MONTHLY)
+  it('CHAR: the plan-change disclosure names the plan by its display name', () => {
+    expect(upgradeDisclosure('pro', 'annual')).toMatch(/TaxStat360 plan at \$399 every 12 months/)
   })
 })

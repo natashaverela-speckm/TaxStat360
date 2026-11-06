@@ -1133,17 +1133,18 @@ describe('H11 — the structured data agrees with the page', () => {
     expect(orphans, 'JSON-LD answers with no matching on-page text').toEqual([])
   })
 
-  it('the entity-capacity answer matches PLAN_ENTITY_LIMITS, not a hand-typed number', () => {
-    // This is the claim that drifted: the JSON-LD said Starter and Professional both
-    // cover "a single business entity" while Professional actually covers 3. Pinning it
-    // to the constant is stronger than pinning it to Landing's source text, because the
-    // constant is what actually gates the product.
+  it('the entity-capacity answer promises what the one plan delivers (unlimited), not a hand-typed tier table', () => {
+    // SINGLE PLAN (Nov 2026): the FAQ no longer recites per-tier caps. The guard now
+    // checks the JSON-LD answer says "unlimited" for both counts, and that the plan
+    // table agrees (PLAN_ENTITY_LIMITS.pro is uncapped), so the page can never
+    // advertise a limit the product does not enforce or vice versa.
     const html = indexHtml()
-    const answer = (html.match(/"text":\s*"(Entity capacity depends on your plan[^"]*)"/) || [])[1]
+    const answer = (html.match(/"text":\s*"(Yes\. The plan covers unlimited businesses[^"]*)"/) || [])[1]
     expect(answer, 'entity-capacity answer missing from index.html').toBeTruthy()
-    expect(answer).toContain(`Starter covers ${PLAN_ENTITY_LIMITS.starter.business} business`)
-    expect(answer).toContain(`up to ${PLAN_ENTITY_LIMITS.starter.realEstate} rental properties`)
-    expect(answer).toContain(`Professional covers up to ${PLAN_ENTITY_LIMITS.professional.business} businesses`)
+    expect(answer).toMatch(/unlimited businesses and unlimited rental properties/)
+    expect(PLAN_ENTITY_LIMITS.pro.business).toBe(Number.POSITIVE_INFINITY)
+    expect(PLAN_ENTITY_LIMITS.pro.realEstate).toBe(Number.POSITIVE_INFINITY)
+    expect(html).not.toMatch(/Starter covers|Professional covers|Enterprise covers/)
   })
 
   it('the trial answer names the real cancellation path', () => {
