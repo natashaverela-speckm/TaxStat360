@@ -19,7 +19,7 @@ export default function StartScreen() {
 
   return (
     <SimpleShell step="start">
-      <h1 style={{ fontSize: 26, fontWeight: 800, color: N, margin: '8px 0 6px', letterSpacing: -0.3 }}>Which one is you?</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 800, color: N, margin: '8px 0 6px', letterSpacing: -0.3 }}>Which one are you?</h1>
       <p style={{ fontSize: 14, color: SL, margin: '0 0 20px', lineHeight: 1.6 }}>Pick the closest match. You'll type a few numbers next, and see what you're on track to owe.</p>
       <div role="list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
         {SIMPLE_TILES.map(t => (
