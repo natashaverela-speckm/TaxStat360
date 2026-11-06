@@ -350,7 +350,7 @@ export default function Settings() {
       <nav style={{background:'#fff',borderBottom:'1px solid #E2E8F0',padding:'0 28px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:100,overflowX:'auto',minWidth:0}}>
         <div onClick={()=>nav('/dashboard')}><LOGO/></div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <NavBtn label="Dashboard"    onClick={()=>nav('/dashboard')}/>
+          <NavBtn label="Home"         onClick={()=>nav('/dashboard')}/>
           <NavBtn label="Tax Tracker"  onClick={()=>nav('/calculate-tax')}/>
           {/* U-01 FIX: was <NavBtn label="AI Analysis" .../> — no lock, no isPro check */}
           <button

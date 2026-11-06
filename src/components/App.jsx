@@ -476,6 +476,7 @@ const ROUTE_TITLES = {
   '/register':         'Start Free Trial | TaxStat360',
   '/verify-email':     'Verify Email | TaxStat360',
   '/dashboard':        'Dashboard | TaxStat360',
+  '/records':          'Saved Records | TaxStat360',
   // PHASE 1 (simple flow): the three front-door screens.
   '/start':            'Get Started | TaxStat360',
   '/numbers':          'Your Numbers | TaxStat360',
@@ -502,7 +503,7 @@ const ROUTE_TITLES = {
 }
 const META_OWNED_ROUTES = ['/features', '/pricing', '/faq']
 const NOINDEX_PREFIXES  = [
-  '/dashboard','/calculate-tax','/calculator',
+  '/dashboard','/records','/calculate-tax','/calculator',
   '/personal-estimate','/tax-return','/ai-analysis','/settings','/admin',
   '/onboarding','/upgrade','/integrations',
   '/carryforward-wizard',
@@ -779,7 +780,11 @@ export default function App() {
         <Route path="/tracker"       element={<Navigate to="/calculate-tax" replace />} />
         <Route path="/calculate-tax" element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
-        <Route path="/dashboard"     element={<AuthedWithTour><Dashboard /></AuthedWithTour>} />
+        {/* ONE FRONT DOOR: with the simple flow on, /dashboard is /start for everyone
+            (logo clicks, login redirects, error-boundary recovery, old bookmarks).
+            The old dashboard survives only as the saved-records list at /records. */}
+        <Route path="/dashboard"     element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <Navigate to="/start" replace /> : <Dashboard />}</AuthedWithTour>} />
+        <Route path="/records"       element={<AuthedWithTour><Dashboard /></AuthedWithTour>} />
         {/* AUDIT B2: canonical route is /personal-estimate. /tax-return is kept
             as a permanent redirect so bookmarks, stale nav calls, and in-flight
             sessions never dead-end. Do NOT reintroduce /tax-return as a live route. */}

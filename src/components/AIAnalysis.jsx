@@ -2466,7 +2466,7 @@ export default function AIAnalysis() {
             {/* UX AUDIT F17 (Jul 2026): emoji-only mobile nav (⊞ 🧮 🤖 ⚙) replaced
                 with short text labels + ≥44px touch targets, matching Dashboard. */}
             {[
-              { label: 'Dashboard',    mobileLabel: 'Home',     path: '/dashboard' },
+              { label: 'Home',         mobileLabel: 'Home',     path: '/dashboard' },
               { label: 'Tax Tracker',  mobileLabel: 'Tracker',  path: '/calculate-tax' },
               { label: 'AI Analysis & Reporting', mobileLabel: 'AI', path: '/ai-analysis' },
               { label: 'Settings',     mobileLabel: 'Settings', path: '/settings' },
