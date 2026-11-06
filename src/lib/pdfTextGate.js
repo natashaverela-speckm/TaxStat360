@@ -76,7 +76,7 @@ function toPdfBytes(data) {
  * @param {{ getDocument?: typeof getDocument }} [deps]
  * @returns {Promise<string>}
  */
-export async function extractPdfTextLayer(data, deps = {}) {
+export async function extractPdfPages(data, deps = {}) {
   ensurePdfWorker()
   const loader = deps.getDocument || getDocument
   const bytes = toPdfBytes(data)
@@ -95,7 +95,53 @@ export async function extractPdfTextLayer(data, deps = {}) {
       .join(' ')
     parts.push(line)
   }
-  return parts.join('\n')
+  return parts
+}
+
+export async function extractPdfTextLayer(data, deps = {}) {
+  return (await extractPdfPages(data, deps)).join('\n')
+}
+
+// ── Page selection for long packages ────────────────────────────────────────
+// A tax-software PDF bundles the state return, e-file forms and dozens of
+// worksheets with the federal return. The review needs the federal forms. Pages
+// are scored, kept in order, and the federal ones go first until the budget is
+// spent; state-return pages are dropped when anything has to give.
+export const TEXT_BUDGET_CHARS = 260_000
+
+const FEDERAL_PAGE = /Form\s*1040\b|Schedule\s*(1|2|3|A|B|C|D|E|SE|K-1|K)\b|Form\s*(1120-?S?|1065|4562|8582|8995|2210|8829|7203|1125-E|8825|W-2|1099)\b|Individual Income Tax Return|Income Tax Return for an S Corporation|Return of Partnership Income|Corporation Income Tax Return|Depreciation and Amortization|Passive Activity Loss/i
+const STATE_PAGE = /Department of Revenue|Franchise Tax Board|Department of Taxation|Comptroller|State of [A-Z][a-z]+ |\b(IT-201|IT-203|540|D-400|MI-1040|PA-40|IL-1040|NJ-1040|CT-1040|MA Form 1|Form 500|Form 502|Form IT-40|Form 40|Form 104|Form 1A|Form M1)\b|Resident Income Tax Return|Nonresident|Part-Year Resident|State Income Tax Return|state return/i
+const NOISE_PAGE = /e-file|Electronic Filing|Form 8879|Form 8878|Client Copy|Filing Instructions|Transmittal|Engagement Letter|Invoice|Cover Sheet|Two-Year Comparison|Tax Summary|Comparison/i
+
+export function scorePage(text) {
+  const t = String(text || '')
+  let s = 0
+  if (FEDERAL_PAGE.test(t)) s += 2
+  if (STATE_PAGE.test(t)) s -= 2
+  if (NOISE_PAGE.test(t)) s -= 1
+  return s
+}
+
+/** Keep pages in document order; when the package exceeds the budget, keep the
+ *  federal pages first, then neutral pages, and drop state-return pages. */
+export function selectReturnPages(pages, budget = TEXT_BUDGET_CHARS) {
+  const cleaned = (pages || []).map(p => String(p || '').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim())
+  const total = cleaned.reduce((t, p) => t + p.length + 1, 0)
+  if (total <= budget) return { text: cleaned.join('\n'), kept: cleaned.length, dropped: 0 }
+  const scored = cleaned.map((p, i) => ({ i, p, s: scorePage(p) }))
+  const keep = new Set()
+  let used = 0
+  for (const tier of [2, 1, 0, -1]) {
+    for (const x of scored) {
+      if (x.s < tier || keep.has(x.i)) continue
+      if (tier === -1 && x.s < -1) continue
+      if (used + x.p.length + 1 > budget) continue
+      keep.add(x.i); used += x.p.length + 1
+    }
+    if (tier === 0) break   // state pages (−2) are never added once we are over budget
+  }
+  const text = scored.filter(x => keep.has(x.i)).map(x => x.p).join('\n')
+  return { text, kept: keep.size, dropped: cleaned.length - keep.size }
 }
 
 /**
@@ -183,11 +229,15 @@ export async function prepareTax1040TextForUpload(file, deps = {}) {
     return { ok: false, code: GATE_CODES.UNSUPPORTED_FILE_TYPE, message: GATE_MESSAGES[GATE_CODES.UNSUPPORTED_FILE_TYPE] }
   }
   let text = ''
+  let pageInfo = { kept: 0, dropped: 0 }
   try {
     const buffer = await file.arrayBuffer()
-    text = typeof deps.extractText === 'function'
-      ? await deps.extractText(buffer)
-      : await extractPdfTextLayer(buffer, { getDocument: deps.getDocument })
+    const pages = typeof deps.extractText === 'function'
+      ? String(await deps.extractText(buffer)).split('\f')
+      : await extractPdfPages(buffer, { getDocument: deps.getDocument })
+    const sel = selectReturnPages(pages)
+    text = sel.text
+    pageInfo = { kept: sel.kept, dropped: sel.dropped }
   } catch (err) {
     if (typeof console !== 'undefined' && console.warn) {
       console.warn('[pdfTextGate] PDF_UNREADABLE', err?.name || 'Error', err?.message || err)
@@ -201,5 +251,5 @@ export async function prepareTax1040TextForUpload(file, deps = {}) {
   if (!assertNoSsnRemaining(masked.text)) {
     return { ok: false, code: GATE_CODES.SSN_DETECTED, message: GATE_MESSAGES[GATE_CODES.SSN_DETECTED] }
   }
-  return { ok: true, text: masked.text, alnum: countAlphanumeric(masked.text), redactedCount: masked.redactedCount }
+  return { ok: true, text: masked.text, alnum: countAlphanumeric(masked.text), redactedCount: masked.redactedCount, ...pageInfo }
 }
