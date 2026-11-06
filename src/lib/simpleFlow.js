@@ -21,7 +21,7 @@ import {
   readPersonalContext, writePersonalContext,
   readStep1State, writeStep1State,
   readTaxYear, writeTaxYear,
-  writeDirtyFlag, clearActiveRecord,
+  writeDirtyFlag, clearActiveRecord, clearStep1State,
 } from '../utils/sessionState.js'
 
 export const SIMPLE_FLOW_ENABLED = (() => {
@@ -202,6 +202,17 @@ export function writeSimpleFlowState(input) {
   return entity
 }
 
+/** "Start over": drop the working figures (entities, personal context, active
+ *  record) so the next scenario does not silently inherit carryforwards,
+ *  withholding or deductions from a review or an earlier scenario. Keeps the
+ *  session owner, sign-in and tax year. */
+export function resetWorkingFigures() {
+  clearStep1State()
+  writePersonalContext({})   // manifest defaults
+  clearActiveRecord()
+  writeDirtyFlag(false)
+}
+
 /** Screen 3's inputs from the live session: engine summary + cards + the record. */
 export function selectSimpleResult() {
   const taxYear = readTaxYear() || CURRENT_TAX_YEAR
@@ -209,8 +220,18 @@ export function selectSimpleResult() {
   const { entities } = readStep1State()
   const rec = buildRecordFromInputs({ pc, entities, taxYear })
   const summary = summarizeRecord(rec)
-  const cards = buildOpportunities(rec)
+  const cards = markAlreadySaving(buildOpportunities(rec))
   return { summary, cards, rec, taxYear, entities }
+}
+
+/** Cards that describe a saving the structure already delivers (the S-Corp's
+ *  SE-tax position versus a sole proprietorship) are not "ways to lower it".
+ *  They keep their figure as `alreadySaving` and sort after the real ones. */
+export const ALREADY_SAVING_TITLES = Object.freeze(['S-Corp Salary vs. Distribution Split'])
+export function markAlreadySaving(cards) {
+  const opportunities = (cards?.opportunities || []).map(c =>
+    ALREADY_SAVING_TITLES.includes(c.title) && nf(c.saving) > 0 ? { ...c, alreadySaving: c.saving, saving: 0 } : c)
+  return Object.freeze({ ...cards, opportunities: Object.freeze(opportunities) })
 }
 
 /** Sort for the result screen: dollar savings descending, unquantified cards after,

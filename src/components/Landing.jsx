@@ -437,6 +437,7 @@ export default function Landing() {
               features: [
                 _entityLimitLabel('pro'),
                 'Year-round federal tax liability tracker',
+                'Prior-year return review \u2014 upload the 1040 and business returns, get the memo of findings',
                 'K-1 income (S-Corps, partnerships, Multi-Member LLCs)',
                 'Schedule C (sole props & SMLLCs)',
                 'Quarterly estimated payments',

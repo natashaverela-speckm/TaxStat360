@@ -635,10 +635,14 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
     const filed = asFiled
     const reps = summarizeRecord(buildReviewRecord(f, 'reps'))
     const str = summarizeRecord(buildReviewRecord(f, 'str'))
+    // When REPS was claimed as filed, the number that matters is the return WITHOUT it.
+    const withoutRep = f.realEstateProfessional ? summarizeRecord(buildReviewRecord({ ...f, realEstateProfessional: false }, 'filed')) : null
     scenarios = Object.freeze({
       filed: filed.ok ? filed.totalTax : null,
       reps: reps.ok ? reps.totalTax : null,
       str: str.ok ? str.totalTax : null,
+      withoutReps: withoutRep && withoutRep.ok ? withoutRep.totalTax : null,
+      repsClaimed: !!f.realEstateProfessional,
       suspended: filed.ok ? nf(filed.totalSuspendedLoss) : 0,
     })
     const saving = filed.ok && reps.ok ? Math.max(0, filed.totalTax - reps.totalTax) : null

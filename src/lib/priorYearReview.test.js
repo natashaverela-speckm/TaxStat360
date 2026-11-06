@@ -348,6 +348,8 @@ describe('real estate professional as filed', () => {
     expect(rc.detail).toMatch(/rides on the log/)
     expect(rc.link).toMatch(/repsrecord/)
     expect(m.scenarios.filed).toBe(m.scenarios.reps)
+    expect(m.scenarios.repsClaimed).toBe(true)
+    expect(m.scenarios.withoutReps).toBeGreaterThan(m.scenarios.filed)
   })
 
   it('with the 1120-S showing a funded pension and a loss year, no SEP card and a loss-year comp finding', () => {

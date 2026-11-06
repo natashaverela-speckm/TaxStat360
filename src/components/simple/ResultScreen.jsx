@@ -8,7 +8,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
-import { selectSimpleResult, sortCardsBySaving } from '../../lib/simpleFlow.js'
+import { selectSimpleResult, sortCardsBySaving, resetWorkingFigures } from '../../lib/simpleFlow.js'
 import { fmt, pct, effectiveRate } from '../../utils/money.js'
 import { NAVY as N, SLATE as SL, BLUE as B, SUCCESS_TEXT } from '../../lib/theme.js'
 
@@ -33,7 +33,11 @@ function Card({ o }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        {o.saving ? <span style={{ fontSize: 18, fontWeight: 800, color: SUCCESS_TEXT }}>Save ~{fmt(o.saving)}</span> : <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Worth a look</span>}
+        {o.saving
+          ? <span style={{ fontSize: 18, fontWeight: 800, color: SUCCESS_TEXT }}>Save ~{fmt(o.saving)}</span>
+          : o.alreadySaving
+            ? <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Already saving ~{fmt(o.alreadySaving)}</span>
+            : <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Worth a look</span>}
         <span style={{ fontSize: 15, fontWeight: 700, color: N }}>{o.icon} {o.title}</span>
       </div>
       <p style={{ fontSize: 13, color: SL, margin: '8px 0 0', lineHeight: 1.6 }}>{lead}</p>
@@ -117,7 +121,7 @@ export default function ResultScreen() {
         <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => nav('/personal-estimate')} style={{ ...linkBtn, background: B, color: '#fff', border: '1px solid ' + B }}>Save this record</button>
           <button onClick={() => nav('/ai-analysis')} style={linkBtn}>Share with my CPA (export)</button>
-          <button onClick={() => nav('/start')} style={linkBtn}>Start over</button>
+          <button onClick={() => { resetWorkingFigures(); nav('/start') }} style={linkBtn}>Start over</button>
         </div>
         <p style={{ fontSize: 12, color: SL, marginTop: 10, lineHeight: 1.5 }}>Saving and the CPA export open the full form, where every number above can be refined. Nothing you typed is lost.</p>
       </section>

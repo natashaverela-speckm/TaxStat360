@@ -21,7 +21,7 @@ import { STRIPE_PORTAL_URL } from '../lib/constants.js'
 // SINGLE PLAN (Nov 2026): "starter" is the no-subscription state, "pro" the plan.
 const PLANS = {
   starter: { label:PLAN_DISPLAY_NAMES.starter, price:{ monthly:0, annual:0 }, color:'#64748B' },
-  pro:     { label:PLAN_DISPLAY_NAMES.pro, price:{ monthly:PLAN_PRICING.pro.monthly, annual:PLAN_PRICING.pro.annualMonthly }, color:B, popular:true },
+  pro:     { label:PLAN_DISPLAY_NAMES.pro, price:{ monthly:PLAN_PRICING.pro.monthly, annual:PLAN_PRICING.pro.annualMonthly }, color:B, popular:false },
 }
 
 // FEAT-01 FIX: FEATURES table now mirrors Landing.jsx plan feature lists exactly.
@@ -32,6 +32,7 @@ const PLANS = {
 const FEATURES = [
   // ── Starter ──────────────────────────────────────────────────────────────
   { label:'Year-round federal tax liability tracker', starter:true, pro:true },
+  { label:'Prior-year return review \u2014 upload the 1040 and business returns, get the memo of findings', starter:false, pro:true },
   { label:'K-1 income (S-Corps, partnerships, Multi-Member LLCs)', starter:true, pro:true },
   { label:'Schedule C (sole props & SMLLCs)', starter:true, pro:true },
   { label:'Quarterly estimated payments', starter:true, pro:true },
@@ -313,7 +314,7 @@ export default function Upgrade() {
                 Current plan: <span style={{color:B}}>{PLANS[currentPlan]?.label}</span>
               </div>
               <div style={{fontSize:13,color:SL,lineHeight:1.5}}>
-                Manage billing, update your payment method, downgrade, or cancel your subscription at any time.
+                Manage billing, update your payment method, switch between monthly and annual, or cancel your subscription at any time.
                 {' '}If you cancel, you keep access until the end of your current billing period.
               </div>
             </div>
@@ -355,12 +356,12 @@ export default function Upgrade() {
         {/* Header */}
         <div style={{textAlign:'center',marginBottom:36}}>
           <h1 style={{fontSize:28,fontWeight:800,color:N,marginBottom:8}}>
-            {isPaid ? 'Change Your Plan' : 'Upgrade Your Plan'}
+            {isPaid ? 'Your plan' : 'Subscribe to TaxStat360'}
           </h1>
           <p style={{color:SL,fontSize:15}}>
             You're currently on <strong>{PLANS[currentPlan]?.label || 'Starter'}</strong>.
             {isPaid
-              ? ' To downgrade or cancel, use "Manage Billing" above.'
+              ? ' To switch billing or cancel, use "Manage Billing" above.'
               : ' Choose a plan below to unlock more features.'
             }
           </p>
@@ -436,7 +437,7 @@ export default function Upgrade() {
 
         {/* FTC disclosure — required: clear statement of cancellation terms */}
         <div style={{background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:10,padding:'14px 20px',marginBottom:24,fontSize:12,color:SL,lineHeight:1.6,textAlign:'center'}}>
-          You may cancel or downgrade your subscription at any time using the "Cancel Plan" or "Manage Billing" buttons above.
+          You may cancel your subscription at any time using the "Cancel Plan" or "Manage Billing" buttons above.
           Upon cancellation, you retain access to your current plan until the end of the billing period. No refunds are issued for partial periods.
           To cancel, click "Cancel Plan" → confirm → you will be redirected to our secure billing portal.
         </div>
