@@ -34,6 +34,11 @@ import { NAVY as N, SLATE as SL } from '../lib/theme.js'
 import WelcomeTourScreen from './WelcomeTourScreen.jsx'
 import CarryforwardWizard from './CarryforwardWizard.jsx'
 import { needsOnboardingTour } from '../utils/onboardingTour.js'
+// PHASE 1 (simple flow, Nov 2026): the three-screen front door and its flag.
+import StartScreen from './simple/StartScreen.jsx'
+import NumbersScreen from './simple/NumbersScreen.jsx'
+import ResultScreen from './simple/ResultScreen.jsx'
+import { SIMPLE_FLOW_ENABLED, SIMPLE_ROUTES } from '../lib/simpleFlow.js'
 // AUDIT B6 (Sep 2026): route allowlist for the Meta pixel. See complianceCopy.js.
 import { isPixelAllowedPath } from '../lib/complianceCopy.js'
 
@@ -103,10 +108,13 @@ function AuthFooter() {
   // view above the bar; every other page keeps the fixed strip.
   const { pathname } = useLocation()
   const hasActionBar = pathname === '/calculate-tax'
+  // PHASE 1 (simple flow): the three front-door screens render this strip in flow
+  // too, so the disclaimer sits under the content instead of floating over it.
+  const inFlow = hasActionBar || SIMPLE_ROUTES.includes(pathname)
   return (
     <div style={{
-      ...(hasActionBar
-        ? { position: 'static', margin: '24px 0 92px' }
+      ...(inFlow
+        ? { position: 'static', margin: hasActionBar ? '24px 0 92px' : '0' }
         : { position: 'fixed', bottom: 0, left: 0, right: 0 }),
       background:'#fff',
       borderTop:'1px solid #E2E8F0',display:'flex',alignItems:'center',
@@ -131,6 +139,13 @@ function RequireWelcomeTour({ children }) {
   const location = useLocation()
   const email = readEmail()
   if (email && needsOnboardingTour(email)) {
+    // PHASE 1 (simple flow): a first-login user lands on Screen 1 instead of the
+    // five-step tour. StartScreen retires the tour flag on mount, so this branch
+    // fires once. The simple routes themselves pass through (no redirect loop).
+    if (SIMPLE_FLOW_ENABLED) {
+      if (SIMPLE_ROUTES.includes(location.pathname)) return children
+      return <Navigate to="/start" replace state={{ from: location }} />
+    }
     return <Navigate to="/onboarding/welcome" replace state={{ from: location }} />
   }
   return children
@@ -745,6 +760,11 @@ export default function App() {
         {/* Protected app routes */}
         {/* AUDIT #7: /tracker (the "Tax Tracker" nav label) previously 404’d; the live
             route is /calculate-tax. Redirect so bookmarks and stale links never dead-end. */}
+        {/* PHASE 1 (simple flow): Start → Numbers → Result. Behind SIMPLE_FLOW_ENABLED;
+            when the flag is off these paths fall through to the dashboard. */}
+        <Route path="/start"   element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <StartScreen />   : <Navigate to="/dashboard" replace />}</AuthedWithTour>} />
+        <Route path="/numbers" element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <NumbersScreen /> : <Navigate to="/dashboard" replace />}</AuthedWithTour>} />
+        <Route path="/result"  element={<AuthedWithTour>{SIMPLE_FLOW_ENABLED ? <ResultScreen />  : <Navigate to="/dashboard" replace />}</AuthedWithTour>} />
         <Route path="/tracker"       element={<Navigate to="/calculate-tax" replace />} />
         <Route path="/calculate-tax" element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
         <Route path="/calculator"    element={<AuthedWithTour><CalculateTaxInner /></AuthedWithTour>} />
