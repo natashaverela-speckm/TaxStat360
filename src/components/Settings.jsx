@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { API_BASE_URL, STRIPE_PORTAL_URL } from '../lib/constants.js'
+import { API_BASE_URL, STRIPE_PORTAL_URL, PLAN_DISPLAY_NAMES } from '../lib/constants.js'
 import { useNavigate } from 'react-router-dom'
 import { signOut, wipeAccountLocalData } from '../utils/SignOut'
 import { isPro } from './LockedFeature'
@@ -36,6 +36,7 @@ export default function Settings() {
   const [, setMemberSince] = useState('')
   const [email, setEmail] = useState('')
   const [plan, setPlan] = useState('')
+  const [planId, setPlanId] = useState('starter')
   const [billingInterval, setBillingInterval] = useState('monthly')
   const [emailSent, setEmailSent] = useState(false)
   const [pwSent, setPwSent] = useState(false)
@@ -125,7 +126,8 @@ export default function Settings() {
 
     refreshPlanFromServer().then((plan) => {
       const display = normalizePlanId(plan || readPlan() || 'starter')
-      setPlan(display === 'starter' ? 'Starter' : display.charAt(0).toUpperCase() + display.slice(1))
+      setPlanId(display)
+      setPlan(display === 'starter' ? 'No subscription' : (PLAN_DISPLAY_NAMES[display] || 'TaxStat360'))
     })
 
     const storedBilling = readBilling() || 'monthly'
@@ -436,17 +438,19 @@ export default function Settings() {
           <div style={{fontSize:11,fontWeight:700,color:SL,letterSpacing:'0.08em',marginBottom:16,textTransform:'uppercase'}}>Subscription</div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div>
-              <div style={{fontSize:15,fontWeight:600,color:N}}>{plan} Plan</div>
+              <div style={{fontSize:15,fontWeight:600,color:N}}>{planId === 'starter' ? 'No subscription' : `${plan} plan`}</div>
               {/* AUDIT H9: "Cancel anytime" with no visible cancel control was a
                   promise the page did not keep. Point at the control below. */}
-              <div style={{fontSize:13,color:SL,marginTop:3}}>Billed {billingInterval.toLowerCase()} · Cancel anytime below</div>
+              <div style={{fontSize:13,color:SL,marginTop:3}}>{planId === 'starter' ? 'Subscribe to unlock the full app.' : `Billed ${billingInterval.toLowerCase()} · Cancel anytime below`}</div>
             </div>
-            <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{plan.toUpperCase()}</span>
+            <span style={{padding:'4px 12px',background:'#EFF6FF',color:B,fontSize:12,fontWeight:700,borderRadius:20}}>{planId === 'starter' ? 'FREE' : 'ACTIVE'}</span>
           </div>
           <div style={{display:'flex',gap:10}}>
-            <button onClick={()=>nav('/upgrade')} style={{flex:1,padding:'10px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>
-              ↑ Upgrade Plan
-            </button>
+            {planId === 'starter' && (
+              <button onClick={()=>nav('/upgrade')} style={{flex:1,padding:'10px',background:B,color:'#fff',border:'none',borderRadius:8,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+                Subscribe to TaxStat360
+              </button>
+            )}
             <button onClick={handleManageBilling} style={{flex:1,padding:'10px',background:'#F8FAFC',border:'1px solid #E2E8F0',borderRadius:8,fontWeight:600,fontSize:13,cursor:'pointer',color:N}}>
               Manage Billing →
             </button>

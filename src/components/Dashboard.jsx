@@ -645,7 +645,7 @@ export default function Dashboard() {
       <nav style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '0 28px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, overflowX: 'auto', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <LOGO />
-          <div style={{ background: '#F1F5F9', color: SL, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Dashboard</div>
+          <div style={{ background: '#F1F5F9', color: SL, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>Saved records</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {userName && (
@@ -692,7 +692,7 @@ export default function Dashboard() {
 
       {/* UX AUDIT F15 (Jul 2026): main landmark so screen-reader users can jump
           past the nav/banners straight to the records. */}
-      <main id="main-content" aria-label="Dashboard" style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
+      <main id="main-content" aria-label="Saved records" style={{ maxWidth: 1080, margin: '0 auto', padding: '32px 20px' }}>
         {/* PHASE 3.3: the page's missing h1 — visually hidden (the Dashboard's
             design has no on-screen title) so assistive tech gets a proper
             document outline; "My Saved Records" below remains a correct h2. */}
