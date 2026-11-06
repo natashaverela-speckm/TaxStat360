@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { writeDirtyFlag } from '../utils/sessionState.js'
 import { useNavigate } from 'react-router-dom'
+import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 import { readPersonalContext, writePersonalContext, readTaxYear, writeStep1State, writeTaxYear, readStep1StateRaw, readUserRecords, readActiveRecordId, readActiveRecordName, writeActiveRecord, syncRecordToServer, readPresetEntityType, clearPresetEntityType, writeStep1Entities, readStep1Entities, writeStep1Draft, readStep1Draft, clearStep1Draft, readEmail } from '../utils/sessionState.js'
 import { canAccessCarryforwardWizard } from '../lib/carryforwardWizardAccess.js'
 import {
@@ -3141,7 +3142,10 @@ export default function CalculateTaxInner() {
 
         {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Business Entities</h1>
+          {SIMPLE_FLOW_ENABLED && (
+            <button onClick={() => navigate('/result')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 10 }}>← Back to your result</button>
+          )}
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>{SIMPLE_FLOW_ENABLED ? 'Advanced: your businesses and properties' : 'Business Entities'}</h1>
           <p style={{ color: SL, fontSize: 14, margin: 0 }}>Add each business entity you have an ownership stake in. Gross receipts, expenses, and your share of business income flow to your personal return in Step 2.</p>
         </div>
 

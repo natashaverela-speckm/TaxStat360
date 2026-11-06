@@ -500,7 +500,7 @@ describe('TaxReturn — SALT-cap InfoTip wording (regression, Aug 2026)', () => 
     // to mount the field at all.
     readPersonalContext.mockReturnValue({ useItemized: true })
     const { container } = renderTaxReturn()
-    fireEvent.click(screen.getByText('Above-the-Line Deductions & Adjustments (Schedule 1)'))
+    fireEvent.click(screen.getByText('Retirement, HSA and health insurance'))   // PHASE 2: plain Advanced title under the simple flow
     const text = container.textContent
     // Mocked SALT_CAPS (top of this file): { 2024: 10000, 2025: 10000, 2026: 40000 }
     expect(text).toContain('$10,000 for 2024, $10,000 for 2025, and $40,000 for 2026')
