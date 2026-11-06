@@ -39,6 +39,8 @@ describe('field contract', () => {
     expect(f.filingStatus).toBe('single')
     expect(f.shortTermRental).toBe(true)
     expect(f.dependents).toBe(2)
+    expect(normalizeReviewFields({ priorYearQBILoss: '-22,321', nolCarryforward: -5 }).priorYearQBILoss).toBe(22321)
+    expect(normalizeReviewFields({ nolCarryforward: -5 }).nolCarryforward).toBe(5)
     expect(f.taxYear).toBe(new Date().getFullYear() - 1 >= 2024 ? f.taxYear : f.taxYear)
   })
 

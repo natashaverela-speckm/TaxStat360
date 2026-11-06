@@ -80,12 +80,14 @@ export const TAX_1040_REVIEW_FIELDS = Object.freeze([
   { key: 'capLossCarryforwardST',      group: 'Carryforwards', kind: 'money', label: 'Short-term capital loss carried forward', source: 'Schedule D' },
   { key: 'capLossCarryforwardLT',      group: 'Carryforwards', kind: 'money', label: 'Long-term capital loss carried forward',  source: 'Schedule D' },
   { key: 'nolCarryforward',            group: 'Carryforwards', kind: 'money', label: 'Net operating loss carried forward',      source: 'Form 1040 Schedule 1 / NOL statement' },
-  { key: 'priorYearQBILoss',           group: 'Carryforwards', kind: 'money', label: 'Business-income-deduction loss carried forward', source: 'Form 8995 line 3' },
+  { key: 'priorYearQBILoss',           group: 'Carryforwards', kind: 'money', label: 'Business-income-deduction loss carried forward', source: 'Form 8995 line 16' },
 ])
 
 export const TAX_1040_REVIEW_FIELD_KEYS = Object.freeze(TAX_1040_REVIEW_FIELDS.map(f => f.key))
 
 /** Coerce an extract payload (strings, nulls, confidence map) into typed fields. */
+const CARRYFORWARD_MAGNITUDE_KEYS = ['priorPassiveLossCarryforward', 'capLossCarryforwardST', 'capLossCarryforwardLT', 'nolCarryforward', 'priorYearQBILoss']
+
 export function normalizeReviewFields(raw = {}) {
   const out = {}
   for (const f of TAX_1040_REVIEW_FIELDS) {
@@ -95,6 +97,9 @@ export function normalizeReviewFields(raw = {}) {
     else if (f.kind === 'bool') out[f.key] = v === true || v === 'true' || v === 1
     else if (f.kind === 'enum') out[f.key] = f.options.includes(String(v || '').toLowerCase()) ? String(v).toLowerCase() : f.options[0]
   }
+  // Carryforwards are magnitudes: a worksheet prints "QBI loss carryforward (22,321)"
+  // or "-22,321", and the engine takes the amount, not the sign.
+  for (const k of CARRYFORWARD_MAGNITUDE_KEYS) out[k] = Math.abs(nf(out[k]))
   if (!out.taxYear) out.taxYear = CURRENT_TAX_YEAR - 1
   return out
 }
