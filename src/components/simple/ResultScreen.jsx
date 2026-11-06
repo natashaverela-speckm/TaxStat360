@@ -33,7 +33,11 @@ function Card({ o }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        {o.saving ? <span style={{ fontSize: 18, fontWeight: 800, color: SUCCESS_TEXT }}>Save ~{fmt(o.saving)}</span> : <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Worth a look</span>}
+        {o.saving
+          ? <span style={{ fontSize: 18, fontWeight: 800, color: SUCCESS_TEXT }}>Save ~{fmt(o.saving)}</span>
+          : o.alreadySaving
+            ? <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Already saving ~{fmt(o.alreadySaving)}</span>
+            : <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Worth a look</span>}
         <span style={{ fontSize: 15, fontWeight: 700, color: N }}>{o.icon} {o.title}</span>
       </div>
       <p style={{ fontSize: 13, color: SL, margin: '8px 0 0', lineHeight: 1.6 }}>{lead}</p>

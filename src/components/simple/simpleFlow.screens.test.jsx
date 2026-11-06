@@ -79,6 +79,9 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(within(hero).getAllByText('$29,799').length).toBeGreaterThanOrEqual(1)   // headline (and, late in the year, the single remaining installment)
     expect(screen.getByText('Next estimated payment')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Ways to lower it' })).toBeInTheDocument()
+    // the S-Corp's existing SE-tax position is not a "way to lower it"
+    for (const el of screen.getAllByText(/^Save ~\$/)) expect(el.closest('div').textContent).not.toMatch(/Salary vs\. Distribution/)
+    expect(screen.getByText(/^Already saving ~\$/).closest('div').textContent).toMatch(/Salary vs\. Distribution/)
     // biggest dollar card first
     const cards = screen.getAllByText(/^Save ~\$/)
     expect(cards.length).toBeGreaterThan(2)
