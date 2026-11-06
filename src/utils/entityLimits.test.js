@@ -1,3 +1,4 @@
+import { PLAN_ENTITY_LIMITS } from '../lib/constants.js'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   countBusinessEntities,
@@ -42,12 +43,14 @@ describe('entityLimits', () => {
     expect(canAddBusinessEntity([rental, rental, rental])).toBe(true)
   })
 
-  it('professional allows up to 3 business entities', () => {
+  it('professional is unlimited under the single plan (PHASE 1b); the 3-entity cap only applies with the flag off', () => {
     vi.mocked(getUserPlan).mockReturnValue('professional')
     const twoBiz = [biz, { type: 'Partnership / LLC' }]
     expect(canAddBusinessEntity(twoBiz)).toBe(true)
-    expect(canAddBusinessEntity([...twoBiz, { type: 'C Corporation' }])).toBe(false)
+    expect(canAddBusinessEntity([...twoBiz, { type: 'C Corporation' }])).toBe(true)
     expect(canAddRealEstateEntity([...twoBiz, rental])).toBe(true)
+    // the table itself still records the legacy cap for the flag-off path
+    expect(PLAN_ENTITY_LIMITS.professional.business).toBe(3)
   })
 
   it('enterprise is unlimited', () => {

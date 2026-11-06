@@ -4,6 +4,7 @@ import { clearInvalidSession } from '../utils/sessionAuth.js'
 import { NAVY as N, BLUE as B } from '../lib/theme.js'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
+import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 
 // ─── Plan Constants & Normalization ──────────────────────────────────────────
 // Single source of truth for plan IDs. ALL plan-gate code must import from here.
@@ -82,6 +83,10 @@ export function isPro() {
 }
 
 export function isEnterprise() {
+  // PHASE 1b (single plan): the API now gates the former Enterprise-only reports on
+  // "any paid plan", so the UI matches — every paid account has every feature. The
+  // tier distinction only survives when the simple flow is switched off.
+  if (SIMPLE_FLOW_ENABLED) return isPro()
   return getUserPlan() === 'enterprise'
 }
 
