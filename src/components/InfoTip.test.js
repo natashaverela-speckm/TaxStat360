@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, fireEvent, cleanup } from '@testing-library/react'
 import React from 'react'
-import InfoTip, { computeTooltipPosition } from './InfoTip.jsx'
+import InfoTip, { computeTooltipPosition, leadOf, LEAD_MAX_CHARS } from './InfoTip.jsx'
 
 afterEach(cleanup)
 
@@ -130,5 +130,47 @@ describe('InfoTip trigger accessibility & interaction', () => {
     await new Promise((r) => setTimeout(r, 200)) // 120ms grace period
     expect(queryByRole('tooltip')).toBeNull()
     expect(getByRole('button').getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
+// ── PHASE 2 (Learn more, Nov 2026) ───────────────────────────────────────────
+describe('Learn more: long help text opens with its first sentence', () => {
+  const LONG = 'Enter your non-RE hours and we automatically calculate whether your real estate hours exceed 50% of all personal services. This is the test most trackers completely ignore, and it is governed by IRC §469(c)(7)(B)(i) together with Temp. Reg. §1.469-9 and a body of Tax Court case law that turns on contemporaneous records.'
+
+  it('short text is shown whole; long text yields a first-sentence lead', () => {
+    expect(leadOf('Rents received before expenses.')).toEqual({ lead: 'Rents received before expenses.', truncated: false })
+    const r = leadOf(LONG)
+    expect(r.truncated).toBe(true)
+    expect(r.lead).toBe('Enter your non-RE hours and we automatically calculate whether your real estate hours exceed 50% of all personal services.')
+    expect(r.lead.length).toBeLessThanOrEqual(LEAD_MAX_CHARS)
+  })
+
+  it('a long text with no sentence break is cut at a word boundary with an ellipsis', () => {
+    const r = leadOf('word '.repeat(60).trim())
+    expect(r.truncated).toBe(true)
+    expect(r.lead.endsWith('…')).toBe(true)
+    expect(r.lead.length).toBeLessThanOrEqual(LEAD_MAX_CHARS + 1)
+  })
+
+  it('the bubble shows the lead and a Learn more control; clicking it reveals the full text and pins the bubble', () => {
+    const { getByRole, getByText, queryByText } = render(React.createElement(InfoTip, { text: LONG, label: 'Hours' }))
+    const trigger = getByRole('button', { name: 'Help: Hours' })
+    fireEvent.mouseEnter(trigger)
+    const bubble = getByRole('tooltip')
+    expect(bubble.textContent).toContain('Enter your non-RE hours')
+    expect(bubble.textContent).not.toContain('Tax Court case law')
+    fireEvent.click(getByText('Learn more'))
+    expect(getByRole('tooltip').textContent).toContain('Tax Court case law')
+    expect(getByText('Show less')).toBeTruthy()
+    // pinned: hover-out does not close it
+    fireEvent.mouseLeave(trigger)
+    expect(queryByText('Show less')).toBeTruthy()
+  })
+
+  it('the full text is always in the accessibility tree regardless of the lead', () => {
+    const { getByRole } = render(React.createElement(InfoTip, { text: LONG }))
+    const trigger = getByRole('button')
+    const desc = document.getElementById(trigger.getAttribute('aria-describedby'))
+    expect(desc.textContent).toBe(LONG)
   })
 })
