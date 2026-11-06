@@ -72,7 +72,7 @@ async function readOneReturn(file) {
   const fixture = /fixture-tax-/i.test(file.name || '') ? file.name : null
   const res = await extractTax1040ReviewText(gate.text, profile, fixture)
   if (!res.ok) return { ok: false, name: file.name, kind, error: res.error }
-  return { ok: true, name: file.name, kind, fields: res.result.fields || {}, confidence: res.result.confidence || {} }
+  return { ok: true, name: file.name, kind, fields: res.result.fields || {}, confidence: res.result.confidence || {}, kept: gate.kept, dropped: gate.dropped }
 }
 
 function UploadStep({ onExtracted }) {
@@ -127,6 +127,7 @@ function UploadStep({ onExtracted }) {
                 <span style={{ color: f.ok ? N : R }}>
                   <strong>{f.ok ? KIND_LABEL[f.kind] : 'Not read'}</strong> · {f.name}
                   {!f.ok && <div style={{ fontSize: 12, marginTop: 2 }}>{f.error}</div>}
+                  {f.ok && f.dropped > 0 && <div style={{ fontSize: 12, marginTop: 2, color: SL }}>Long package: read the {f.kept} federal pages and left out {f.dropped} state-return and worksheet pages.</div>}
                 </span>
                 <button onClick={() => setFiles(p => p.filter(x => x.name !== f.name))} style={{ background: 'none', border: 'none', color: SL, cursor: 'pointer', fontSize: 12 }} aria-label={`Remove ${f.name}`}>Remove</button>
               </li>

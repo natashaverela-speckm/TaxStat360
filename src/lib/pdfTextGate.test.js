@@ -9,6 +9,9 @@ import {
   gateTax1040PdfUpload,
   prepareTax1040TextForUpload,
   extractPdfTextLayer,
+  selectReturnPages,
+  scorePage,
+  TEXT_BUDGET_CHARS,
 } from './pdfTextGate.js'
 
 const fixtureDir = join(
@@ -149,6 +152,53 @@ describe('pdfTextGate (Phase 2)', () => {
       if (res.ok) {
         expect(res.redactedCount).toBeGreaterThan(0)
         expect(res.text).not.toMatch(/\b\d{3}-\d{2}-\d{4}\b/)
+      }
+    })
+  })
+
+  describe('long packages: keep the federal pages, drop the state return', () => {
+    const fed = (n) => `Form 1040 U.S. Individual Income Tax Return page ${n} ` + 'w'.repeat(40_000)
+    const sched = (n) => `Schedule E Supplemental Income page ${n} ` + 'e'.repeat(40_000)
+    const state = (n) => `State of California Franchise Tax Board Form 540 Resident Income Tax Return page ${n} ` + 's'.repeat(40_000)
+    const noise = (n) => `Filing Instructions page ${n} ` + 'i'.repeat(40_000)
+    const neutral = (n) => `Depreciation worksheet detail page ${n} ` + 'd'.repeat(40_000)
+
+    it('scores pages', () => {
+      expect(scorePage(fed(1))).toBe(2)
+      expect(scorePage(state(1))).toBeLessThan(0)
+      expect(scorePage(noise(1))).toBe(-1)
+      expect(scorePage(neutral(1))).toBe(0)
+    })
+
+    it('under budget nothing is dropped and order is kept', () => {
+      const r = selectReturnPages([fed(1), state(1), sched(1)], 1_000_000)
+      expect(r.dropped).toBe(0)
+      expect(r.text.indexOf('page 1 ')).toBeLessThan(r.text.indexOf('Schedule E'))
+    })
+
+    it('over budget: federal first, then neutral, state pages dropped, order preserved', () => {
+      const pages = [fed(1), state(1), sched(2), state(2), neutral(3), noise(4), fed(5), state(3), state(4), state(5)]
+      const r = selectReturnPages(pages, 5 * 40_100)
+      expect(r.text).toMatch(/page 1 /)
+      expect(r.text).toMatch(/Schedule E/)
+      expect(r.text).toMatch(/page 5 /)
+      expect(r.text).toMatch(/worksheet detail/)
+      expect(r.text).not.toMatch(/Franchise Tax Board/)
+      expect(r.dropped).toBeGreaterThanOrEqual(5)
+      expect(r.text.length).toBeLessThanOrEqual(5 * 40_100)
+      // document order survives the selection
+      expect(r.text.indexOf('page 1 ')).toBeLessThan(r.text.indexOf('page 5 '))
+    })
+
+    it('prepare reports kept/dropped and stays under the budget on a 60-page package', async () => {
+      const pages = []
+      for (let i = 1; i <= 60; i += 1) pages.push(i <= 20 ? fed(i) : state(i))
+      const res = await prepareTax1040TextForUpload(pdfFile('fixture-tax-1040-text-clean.pdf'), { extractText: async () => pages.join('\f') })
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.text.length).toBeLessThanOrEqual(TEXT_BUDGET_CHARS)
+        expect(res.dropped).toBeGreaterThan(0)
+        expect(res.text).not.toMatch(/Franchise Tax Board/)
       }
     })
   })
