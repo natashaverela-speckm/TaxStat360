@@ -90,6 +90,152 @@ export function normalizeReviewFields(raw = {}) {
   return out
 }
 
+// ── Entity returns (PHASE 2b) ───────────────────────────────────────────────
+// An S-Corp or partnership owner's strategy lives on the 1120-S / 1065, not the
+// 1040: officer pay against distributions, what the entity already deducts, and
+// what Form 4562 shows was placed in service. Keys mirror app/tax_extract.py
+// SCORP_FIELDS / PARTNERSHIP_FIELDS on the API (two repos, one list each).
+
+export const ENTITY_RETURN_KINDS = Object.freeze({
+  '1120s': { profile: 'tax-1120s-review', label: 'S-Corp return (1120-S)', short: '1120-S' },
+  '1065':  { profile: 'tax-1065-review',  label: 'Partnership return (1065)', short: '1065' },
+  '1120':  { profile: 'tax-1120-review',  label: 'C-Corp return (1120)', short: '1120' },
+})
+
+export const ENTITY_RETURN_FIELDS = Object.freeze({
+  '1120s': Object.freeze([
+    { key: 'taxYear',                 group: 'Return',         kind: 'int',   label: 'Tax year of the return',                         source: 'Form 1120-S, top' },
+    { key: 'shareholderCount',        group: 'Return',         kind: 'int',   label: 'Number of shareholders',                         source: 'Form 1120-S item I' },
+    { key: 'grossReceipts',           group: 'Income',         kind: 'money', label: 'Gross receipts',                                 source: 'Form 1120-S line 1a' },
+    { key: 'totalIncome',             group: 'Income',         kind: 'money', label: 'Total income',                                   source: 'Form 1120-S line 6' },
+    { key: 'officerCompensation',     group: 'Pay',            kind: 'money', label: 'Officer salary (W-2 from the company)',          source: 'Form 1120-S line 7 (Form 1125-E)' },
+    { key: 'salariesWages',           group: 'Pay',            kind: 'money', label: 'Other employee wages',                           source: 'Form 1120-S line 8' },
+    { key: 'shareholderHealthIns',    group: 'Pay',            kind: 'money', label: 'Owner health insurance paid by the company',     source: 'K-1 box 17 code AD / statement' },
+    { key: 'pensionProfitSharing',    group: 'Pay',            kind: 'money', label: 'Retirement plan contributions by the company',   source: 'Form 1120-S line 17' },
+    { key: 'employeeBenefits',        group: 'Pay',            kind: 'money', label: 'Employee benefit programs',                      source: 'Form 1120-S line 18' },
+    { key: 'distributions',           group: 'Pay',            kind: 'money', label: 'Distributions to shareholders',                  source: 'Schedule K line 16d' },
+    { key: 'rentsPaid',               group: 'Deductions',     kind: 'money', label: 'Rent paid',                                      source: 'Form 1120-S line 11' },
+    { key: 'taxesAndLicenses',        group: 'Deductions',     kind: 'money', label: 'Taxes and licenses',                             source: 'Form 1120-S line 12' },
+    { key: 'depreciation',            group: 'Deductions',     kind: 'money', label: 'Depreciation',                                   source: 'Form 1120-S line 14' },
+    { key: 'sec179',                  group: 'Deductions',     kind: 'money', label: 'Equipment expensed in full',                     source: 'Schedule K line 11' },
+    { key: 'bonusDepreciation',       group: 'Deductions',     kind: 'money', label: 'Bonus depreciation',                             source: 'Form 4562 line 14' },
+    { key: 'vehicleOrTravel',         group: 'Deductions',     kind: 'money', label: 'Vehicle, travel and meals',                      source: 'Other-deductions statement' },
+    { key: 'homeOfficeOrAccountablePlan', group: 'Deductions', kind: 'bool',  label: 'Accountable-plan or home-office reimbursement shown', source: 'Other-deductions statement' },
+    { key: 'otherDeductions',         group: 'Deductions',     kind: 'money', label: 'Other deductions',                               source: 'Form 1120-S line 19' },
+    { key: 'totalDeductions',         group: 'Deductions',     kind: 'money', label: 'Total deductions',                               source: 'Form 1120-S line 20' },
+    { key: 'ordinaryBusinessIncome',  group: 'Result',         kind: 'money', label: 'Ordinary business income',                       source: 'Form 1120-S line 21' },
+    { key: 'loansToShareholders',     group: 'Balance sheet',  kind: 'money', label: 'Loans to shareholders (year end)',               source: 'Schedule L line 7' },
+    { key: 'loansFromShareholders',   group: 'Balance sheet',  kind: 'money', label: 'Loans from shareholders (year end)',             source: 'Schedule L line 19' },
+    { key: 'totalAssets',             group: 'Balance sheet',  kind: 'money', label: 'Total assets (year end)',                        source: 'Schedule L line 15' },
+  ]),
+  '1065': Object.freeze([
+    { key: 'taxYear',                 group: 'Return',         kind: 'int',   label: 'Tax year of the return',                         source: 'Form 1065, top' },
+    { key: 'partnerCount',            group: 'Return',         kind: 'int',   label: 'Number of partners',                             source: 'Form 1065 item I' },
+    { key: 'grossReceipts',           group: 'Income',         kind: 'money', label: 'Gross receipts',                                 source: 'Form 1065 line 1a' },
+    { key: 'totalIncome',             group: 'Income',         kind: 'money', label: 'Total income',                                   source: 'Form 1065 line 8' },
+    { key: 'netRentalRealEstate',     group: 'Income',         kind: 'money', label: 'Net rental real estate income',                  source: 'Schedule K line 2 (Form 8825)' },
+    { key: 'guaranteedPayments',      group: 'Pay',            kind: 'money', label: 'Guaranteed payments to partners',                source: 'Form 1065 line 10' },
+    { key: 'salariesWages',           group: 'Pay',            kind: 'money', label: 'Employee wages (not partners)',                  source: 'Form 1065 line 9' },
+    { key: 'retirementPlans',         group: 'Pay',            kind: 'money', label: 'Retirement plan contributions by the partnership', source: 'Form 1065 line 18' },
+    { key: 'employeeBenefits',        group: 'Pay',            kind: 'money', label: 'Employee benefit programs',                      source: 'Form 1065 line 19' },
+    { key: 'distributions',           group: 'Pay',            kind: 'money', label: 'Distributions to partners',                      source: 'Schedule K line 19a' },
+    { key: 'selfEmploymentEarnings',  group: 'Pay',            kind: 'money', label: 'Self-employment earnings (all partners)',        source: 'Schedule K line 14a' },
+    { key: 'rentsPaid',               group: 'Deductions',     kind: 'money', label: 'Rent paid',                                      source: 'Form 1065 line 13' },
+    { key: 'taxesAndLicenses',        group: 'Deductions',     kind: 'money', label: 'Taxes and licenses',                             source: 'Form 1065 line 14' },
+    { key: 'depreciation',            group: 'Deductions',     kind: 'money', label: 'Depreciation',                                   source: 'Form 1065 line 16c' },
+    { key: 'sec179',                  group: 'Deductions',     kind: 'money', label: 'Equipment expensed in full',                     source: 'Schedule K line 12' },
+    { key: 'bonusDepreciation',       group: 'Deductions',     kind: 'money', label: 'Bonus depreciation',                             source: 'Form 4562 line 14' },
+    { key: 'vehicleOrTravel',         group: 'Deductions',     kind: 'money', label: 'Vehicle, travel and meals',                      source: 'Other-deductions statement' },
+    { key: 'otherDeductions',         group: 'Deductions',     kind: 'money', label: 'Other deductions',                               source: 'Form 1065 line 20' },
+    { key: 'totalDeductions',         group: 'Deductions',     kind: 'money', label: 'Total deductions',                               source: 'Form 1065 line 21' },
+    { key: 'ordinaryBusinessIncome',  group: 'Result',         kind: 'money', label: 'Ordinary business income',                       source: 'Form 1065 line 22' },
+    { key: 'totalAssets',             group: 'Balance sheet',  kind: 'money', label: 'Total assets (year end)',                        source: 'Schedule L line 14' },
+  ]),
+  '1120': Object.freeze([
+    { key: 'taxYear',                 group: 'Return',         kind: 'int',   label: 'Tax year of the return',                         source: 'Form 1120, top' },
+    { key: 'grossReceipts',           group: 'Income',         kind: 'money', label: 'Gross receipts',                                 source: 'Form 1120 line 1a' },
+    { key: 'totalIncome',             group: 'Income',         kind: 'money', label: 'Total income',                                   source: 'Form 1120 line 11' },
+    { key: 'officerCompensation',     group: 'Pay',            kind: 'money', label: 'Officer salary (W-2 from the company)',          source: 'Form 1120 line 12 (Form 1125-E)' },
+    { key: 'salariesWages',           group: 'Pay',            kind: 'money', label: 'Other employee wages',                           source: 'Form 1120 line 13' },
+    { key: 'pensionProfitSharing',    group: 'Pay',            kind: 'money', label: 'Retirement plan contributions by the company',   source: 'Form 1120 line 23' },
+    { key: 'employeeBenefits',        group: 'Pay',            kind: 'money', label: 'Employee benefit programs (health, etc.)',       source: 'Form 1120 line 24' },
+    { key: 'dividendsPaid',           group: 'Pay',            kind: 'money', label: 'Dividends paid to shareholders',                 source: 'Schedule M-2 line 5' },
+    { key: 'rentsPaid',               group: 'Deductions',     kind: 'money', label: 'Rent paid',                                      source: 'Form 1120 line 16' },
+    { key: 'taxesAndLicenses',        group: 'Deductions',     kind: 'money', label: 'Taxes and licenses',                             source: 'Form 1120 line 17' },
+    { key: 'charitableContributions', group: 'Deductions',     kind: 'money', label: 'Charitable contributions',                       source: 'Form 1120 line 19' },
+    { key: 'depreciation',            group: 'Deductions',     kind: 'money', label: 'Depreciation',                                   source: 'Form 1120 line 20' },
+    { key: 'sec179',                  group: 'Deductions',     kind: 'money', label: 'Equipment expensed in full',                     source: 'Form 4562 line 12' },
+    { key: 'bonusDepreciation',       group: 'Deductions',     kind: 'money', label: 'Bonus depreciation',                             source: 'Form 4562 line 14' },
+    { key: 'vehicleOrTravel',         group: 'Deductions',     kind: 'money', label: 'Vehicle, travel and meals',                      source: 'Other-deductions statement' },
+    { key: 'homeOfficeOrAccountablePlan', group: 'Deductions', kind: 'bool',  label: 'Accountable-plan or home-office reimbursement shown', source: 'Other-deductions statement' },
+    { key: 'otherDeductions',         group: 'Deductions',     kind: 'money', label: 'Other deductions',                               source: 'Form 1120 line 26' },
+    { key: 'totalDeductions',         group: 'Deductions',     kind: 'money', label: 'Total deductions',                               source: 'Form 1120 line 27' },
+    { key: 'taxableIncome',           group: 'Result',         kind: 'money', label: 'Taxable income',                                 source: 'Form 1120 line 30' },
+    { key: 'totalTax',                group: 'Result',         kind: 'money', label: 'Corporate tax',                                  source: 'Form 1120 line 31' },
+    { key: 'loansToShareholders',     group: 'Balance sheet',  kind: 'money', label: 'Loans to shareholders (year end)',               source: 'Schedule L line 7' },
+    { key: 'loansFromShareholders',   group: 'Balance sheet',  kind: 'money', label: 'Loans from shareholders (year end)',             source: 'Schedule L line 19' },
+    { key: 'retainedEarnings',        group: 'Balance sheet',  kind: 'money', label: 'Retained earnings (year end)',                   source: 'Schedule L line 25' },
+    { key: 'totalAssets',             group: 'Balance sheet',  kind: 'money', label: 'Total assets (year end)',                        source: 'Schedule L line 15' },
+  ]),
+})
+
+/** Coerce an entity-return extract payload into typed fields. */
+export function normalizeEntityFields(kind, raw = {}) {
+  const defs = ENTITY_RETURN_FIELDS[kind]
+  if (!defs) throw new Error(`Unknown entity return kind: ${kind}`)
+  const out = {}
+  for (const f of defs) {
+    const v = raw[f.key]
+    if (f.kind === 'money') out[f.key] = v == null || v === '' ? 0 : nf(v)
+    else if (f.kind === 'int') out[f.key] = v == null || v === '' ? 0 : Math.max(0, parseInt(v, 10) || 0)
+    else if (f.kind === 'bool') out[f.key] = v === true || v === 'true' || v === 1
+  }
+  return out
+}
+
+/**
+ * Which federal return a text layer is. Reads the form title on page 1, which is
+ * the one string every preparer's software prints verbatim; a 1040 package also
+ * contains "Schedule K-1 (Form 1120-S)", so form numbers alone are not enough.
+ * Falls back to whichever form name appears first.
+ * @returns {'1040'|'1120s'|'1065'|'1120'|null}
+ */
+export function detectReturnType(text) {
+  const t = String(text || '')
+  if (/Income\s+Tax\s+Return\s+for\s+an\s+S\s+Corporation/i.test(t)) return '1120s'
+  if (/Return\s+of\s+Partnership\s+Income/i.test(t)) return '1065'
+  if (/Individual\s+Income\s+Tax\s+Return/i.test(t)) return '1040'
+  if (/U\.?S\.?\s+Corporation\s+Income\s+Tax\s+Return/i.test(t)) return '1120'
+  const first = [
+    ['1120s', t.search(/Form\s*1120-?S\b/i)],
+    ['1065', t.search(/Form\s*1065\b/i)],
+    ['1040', t.search(/Form\s*1040\b/i)],
+    ['1120', t.search(/Form\s*1120\b(?!-?S)/i)],
+  ].filter(([, i]) => i >= 0).sort((a, b) => a[1] - b[1])
+  return first.length ? first[0][0] : null
+}
+
+/** Fill 1040 figures the extractor usually cannot tell apart (which W-2 is the
+ *  S-Corp's; the K-1 share) from the entity return when the 1040 left them blank. */
+export function mergeEntityReturns(f, entityReturns = []) {
+  const out = { ...f }
+  const scorp = (entityReturns || []).find(r => r && r.kind === '1120s')
+  const pship = (entityReturns || []).find(r => r && r.kind === '1065')
+  if (scorp) {
+    const e = scorp.fields || {}
+    const share = 1 / Math.max(1, nf(e.shareholderCount) || 1)
+    if (!nf(out.officerW2) && nf(e.officerCompensation) > 0) out.officerW2 = Math.round(nf(e.officerCompensation) * share)
+    if (!nf(out.k1ScorpOrdinary) && nf(e.ordinaryBusinessIncome) !== 0) out.k1ScorpOrdinary = Math.round(nf(e.ordinaryBusinessIncome) * share)
+    if (nf(out.officerW2) > nf(out.w2Wages)) out.w2Wages = nf(out.officerW2)
+  }
+  if (pship) {
+    const e = pship.fields || {}
+    const share = 1 / Math.max(1, nf(e.partnerCount) || 1)
+    if (!nf(out.k1PartnershipOrdinary) && nf(e.ordinaryBusinessIncome) !== 0) out.k1PartnershipOrdinary = Math.round(nf(e.ordinaryBusinessIncome) * share)
+  }
+  return out
+}
+
 // ── Record builder ──────────────────────────────────────────────────────────
 
 function entity(type, name, extra = {}) {
@@ -197,9 +343,15 @@ const REPS_LINK = 'https://repsrecord.com'
 /**
  * @returns frozen { taxYear, asFiled: summary, scenarios: {filed, reps, str}, sections: [{...SECTION, findings: []}], questions: [] }
  */
-export function buildPriorYearMemo(fieldsIn) {
-  const f = normalizeReviewFields(fieldsIn)
+export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
+  const f = mergeEntityReturns(normalizeReviewFields(fieldsIn), entityReturns)
   const taxYear = f.taxYear
+  const scorpRet = (entityReturns || []).find(r => r && r.kind === '1120s')
+  const pshipRet = (entityReturns || []).find(r => r && r.kind === '1065')
+  const ccorpRet = (entityReturns || []).find(r => r && r.kind === '1120')
+  const S = scorpRet ? normalizeEntityFields('1120s', scorpRet.fields || {}) : null
+  const P = pshipRet ? normalizeEntityFields('1065', pshipRet.fields || {}) : null
+  const C = ccorpRet ? normalizeEntityFields('1120', ccorpRet.fields || {}) : null
   const rec = buildReviewRecord(f, 'filed')
   const asFiled = summarizeRecord(rec)
   const marginal = asFiled.ok ? asFiled.marginalRate : 0.24
@@ -208,7 +360,8 @@ export function buildPriorYearMemo(fieldsIn) {
   const hasScorp = nf(f.k1ScorpOrdinary) > 0 || nf(f.officerW2) > 0
   const hasSchedC = nf(f.schedCNet) !== 0 || nf(f.schedCGross) > 0
   const hasPship = nf(f.k1PartnershipOrdinary) !== 0
-  const hasBusiness = hasScorp || hasSchedC || hasPship
+  const hasCcorp = !!C   // a C-Corp leaves no K-1 on the 1040; only its own return reveals it
+  const hasBusiness = hasScorp || hasSchedC || hasPship || hasCcorp
   const F = {}
   for (const s of SECTIONS) F[s.id] = []
 
@@ -236,6 +389,34 @@ export function buildPriorYearMemo(fieldsIn) {
       detail: `The return claims ${fmt(nf(f.depreciationTotal) + nf(f.sec179))} of depreciation and expensing. The depreciation schedule (Form 4562 detail) is what an examiner asks for first.`,
     }))
   }
+  if (C && nf(C.loansToShareholders) > 0) {
+    F.records.push(finding('records', 'ccorp-shareholder-loan', 'Loan to shareholder needs a note, interest and repayments', {
+      exposure: true, basis: 'IRC §7872; IRC §301; IRC §316; IRC §6001',
+      conditions: 'A written note, a stated rate at or above the applicable federal rate, a repayment schedule that is actually followed, and board minutes.',
+      detail: `The 1120 balance sheet shows ${fmt(nf(C.loansToShareholders))} owed by a shareholder to the company. Without the paperwork an examiner recharacterizes it as a constructive dividend: taxable to you, not deductible to the company.`,
+    }))
+  }
+  if (C && nf(C.retainedEarnings) > 250000) {
+    F.records.push(finding('records', 'accumulated-earnings', 'Retained earnings above $250,000: document the business need', {
+      exposure: true, basis: 'IRC §531; IRC §532; IRC §535(c); Treas. Reg. §1.537-1',
+      conditions: 'The accumulated earnings tax (20%) applies to earnings kept beyond the reasonable needs of the business. The $250,000 credit drops to $150,000 for a personal service corporation. Minutes and a written plan for the retained funds are the defense.',
+      detail: `Retained earnings are ${fmt(nf(C.retainedEarnings))} at year end. Keep board minutes that state what the accumulation is for (expansion, equipment, working capital, a specific acquisition).`,
+    }))
+  }
+  if (S && nf(S.loansToShareholders) > 0) {
+    F.records.push(finding('records', 'shareholder-loan', 'Loan to shareholder needs a note, interest and repayments', {
+      exposure: true, basis: 'IRC §7872; IRC §1368; Treas. Reg. §1.1368-1; IRC §6001',
+      conditions: 'A written note, a stated rate at or above the applicable federal rate, a repayment schedule that is actually followed, and board minutes.',
+      detail: `The 1120-S balance sheet shows ${fmt(nf(S.loansToShareholders))} owed by a shareholder to the company. Without the paperwork an examiner treats it as a distribution, taxable to the extent it exceeds stock basis.`,
+    }))
+  }
+  if (S && nf(S.distributions) > Math.max(0, nf(S.ordinaryBusinessIncome))) {
+    F.records.push(finding('records', 'basis-schedule', 'Stock-basis schedule: distributions exceeded this year’s income', {
+      exposure: true, basis: 'IRC §1368(b); IRC §1367; Form 7203',
+      conditions: 'Distributions are tax-free only up to stock basis; the excess is capital gain. Form 7203 is required when distributions are received.',
+      detail: `Distributions of ${fmt(nf(S.distributions))} against ${fmt(nf(S.ordinaryBusinessIncome))} of ordinary income. Whether the ${fmt(nf(S.distributions) - Math.max(0, nf(S.ordinaryBusinessIncome)))} excess is tax-free depends on accumulated basis from earlier years, which the basis schedule has to show.`,
+    }))
+  }
   if (hasBusiness) {
     F.records.push(finding('records', 'books', 'A general ledger that ties to the return', {
       exposure: true, basis: 'IRC §6001; Treas. Reg. §1.6001-1(a)',
@@ -246,7 +427,7 @@ export function buildPriorYearMemo(fieldsIn) {
 
   // 2. §162 — the ordinary-and-necessary strategies Natasha teaches, led by family payroll.
   if (hasBusiness) {
-    const childFicaExempt = (hasSchedC || hasPship) && !hasScorp
+    const childFicaExempt = (hasSchedC || hasPship) && !hasScorp && !hasCcorp
     F.ordinary.push(finding('ordinary', 'hire-children', 'Hire your children for real work at a reasonable wage', {
       basis: 'IRC §162(a); IRC §3121(b)(3)(A); IRC §63(c) (standard deduction)',
       conditions: childFicaExempt
@@ -268,8 +449,65 @@ export function buildPriorYearMemo(fieldsIn) {
       F.ordinary.push(finding('ordinary', 'augusta', 'Rent your home to your S-Corp for up to 14 days', {
         basis: 'IRC §280A(g)',
         conditions: 'Real business meetings held at the home, fair-market rent supported by comparables, a written agreement, and minutes.',
-        detail: 'The rent is deductible to the S-Corp and excluded from your income for up to 14 days a year.',
+        detail: S && nf(S.rentsPaid) > 0
+          ? `The 1120-S already deducts ${fmt(nf(S.rentsPaid))} of rent. Up to 14 days of rent for meetings at your home can be added, deductible to the S-Corp and excluded from your income.`
+          : 'The rent is deductible to the S-Corp and excluded from your income for up to 14 days a year.',
       }))
+    }
+    // What the entity return itself shows is, or is not, being deducted.
+    const E = S || P || C
+    if (E) {
+      const which = S ? '1120-S' : P ? '1065' : '1120'
+      const retire = P ? nf(P.retirementPlans) : nf(E.pensionProfitSharing)
+      const ownerPay = P ? nf(P.guaranteedPayments) : nf(E.officerCompensation)
+      if (retire <= 0 && ownerPay > 0) {
+        const employer = Math.min(Math.round(ownerPay * 0.25), 70000)
+        F.ordinary.push(finding('ordinary', 'entity-retirement', `No retirement plan deducted on the ${which}`, {
+          impact: Math.round(employer * marginal),
+          basis: 'IRC §404(a)(3); IRC §401(k); IRC §408(k) (SEP); IRC §415(c)',
+          conditions: P
+            ? 'For a partner the employer contribution is computed on net self-employment earnings; the plan is adopted at the partnership level.'
+            : 'Employer contributions are limited to 25% of W-2 compensation; a Solo 401(k) adds the employee deferral on top. A plan that covers employees has to cover them on the same terms.',
+          detail: `The ${which} shows ${fmt(ownerPay)} of ${P ? 'guaranteed payments' : 'officer salary'} and no retirement-plan line. An employer contribution of up to ${fmt(employer)} would be deductible to the company, worth about ${fmt(Math.round(employer * marginal))} at your marginal rate.`,
+        }))
+      }
+      if (S && nf(S.shareholderHealthIns) <= 0 && nf(S.officerCompensation) > 0 && nf(f.selfEmpHealthIns) <= 0) {
+        F.ordinary.push(finding('ordinary', 'scorp-health', 'Health insurance is not being run through the S-Corp', {
+          basis: 'IRC §162(l); IRS Notice 2008-1; IRC §1372',
+          conditions: 'The policy is in the company’s name or reimbursed by it, the premium is added to the owner’s W-2 box 1 (not FICA wages), and the owner deducts it above the line.',
+          detail: 'Neither the 1120-S nor the 1040 shows the more-than-2% shareholder health-insurance route. Premiums paid personally and deducted only on Schedule A are usually lost to the 7.5% floor.',
+        }))
+      }
+      if (C && nf(C.employeeBenefits) <= 0 && nf(C.officerCompensation) > 0) {
+        F.ordinary.push(finding('ordinary', 'ccorp-fringe', 'No health or fringe benefits deducted by the C-Corp', {
+          basis: 'IRC §105(b); IRC §106; IRC §162(a); IRC §132',
+          conditions: 'A written plan that covers owner-employees as employees; benefits must not discriminate in favor of highly compensated employees where the section requires it.',
+          detail: 'A C-Corp is the one entity that can pay an owner-employee’s health insurance, and reimburse medical costs under a §105 plan, as a fully deductible, tax-free benefit. Line 24 of the 1120 is blank.',
+        }))
+      }
+      if (nf(E.vehicleOrTravel) <= 0) {
+        F.ordinary.push(finding('ordinary', 'entity-vehicle', `No vehicle, travel or meals on the ${which}`, {
+          basis: 'IRC §162(a); IRC §274(d) (substantiation); IRC §280F',
+          conditions: 'Business use documented with a contemporaneous mileage log or, for a company-owned vehicle, the personal-use share added to the W-2.',
+          detail: 'Owners who drive for the business and do not reimburse themselves through the company leave the deduction on the table; an S-Corp owner cannot deduct it personally.',
+        }))
+      }
+      if ((S && !S.homeOfficeOrAccountablePlan) || (C && !C.homeOfficeOrAccountablePlan)) {
+        const corp = S ? '1120-S' : '1120'
+        const ho = F.ordinary.find(x => x.code === 'home-office')
+        const acct = finding('ordinary', 'home-office', `No accountable-plan reimbursement on the ${corp}`, {
+          basis: 'IRC §280A(c); IRC §62(a)(2)(A); Treas. Reg. §1.62-2 (accountable plan)', conditions: 'A written accountable plan, a monthly expense report, and reimbursement by the company for the business-use share of home, phone and internet costs.',
+          detail: `The other-deductions statement shows no accountable-plan or office-in-home line. Set the plan up this year; the reimbursement is deductible to the ${S ? 'S-Corp' : 'corporation'} and not income to you.`,
+        })
+        if (ho) F.ordinary[F.ordinary.indexOf(ho)] = acct; else F.ordinary.push(acct)
+      }
+      if (P && nf(P.guaranteedPayments) > 0) {
+        F.ordinary.push(finding('ordinary', 'guaranteed-payments', 'Guaranteed payments carry self-employment tax in full', {
+          basis: 'IRC §707(c); IRC §1402(a)',
+          conditions: 'Guaranteed payments are for services or capital regardless of profit; they are ordinary income to the partner and subject to SE tax.',
+          detail: `The 1065 shows ${fmt(nf(P.guaranteedPayments))} of guaranteed payments. Whether a partnership should pay partners this way, or whether an S-Corp election would fit, depends on the services performed and the other partners.`,
+        }))
+      }
     }
   }
 
@@ -324,32 +562,81 @@ export function buildPriorYearMemo(fieldsIn) {
   // 5. §179.
   if (hasBusiness) {
     const lim = calc179Limitation({ k1NonPassive: rec.k1Income, entities: rec.entities, w2Income: rec.f1040.w2Income, taxYear })
-    F.sec179.push(finding('sec179', 'sec179', nf(f.sec179) > 0 ? 'Equipment expensing claimed; check the business-income limit next year' : 'Equipment, vehicles and improvements bought for the business', {
+    const E179 = S || P || C
+    const ent179 = E179 ? nf(E179.sec179) : 0
+    const entBonus = E179 ? nf(E179.bonusDepreciation) : 0
+    const entDep = E179 ? nf(E179.depreciation) : 0
+    const claimed179 = nf(f.sec179) + ent179
+    F.sec179.push(finding('sec179', 'sec179', claimed179 > 0 ? 'Equipment expensing claimed; check the business-income limit next year' : 'Equipment, vehicles and improvements bought for the business', {
       basis: 'IRC §179(b)(3) (business-income limit); IRC §179(d)(1); IRC §168(k) (bonus as the alternative)',
       conditions: 'Property used more than 50% in the active conduct of a trade or business. §179 cannot create a loss (the excess carries forward); bonus can.',
-      detail: `${nf(f.sec179) > 0 ? `${fmt(nf(f.sec179))} was expensed under §179.` : 'Nothing was expensed under §179.'} The ${taxYear} business-income limit on these figures is ${fmt(nf(lim?.activeBusinessIncome))}. Bonus depreciation is the alternative when purchases exceed income.`,
+      detail: `${E179
+        ? `The ${S ? '1120-S' : P ? '1065' : '1120'} shows ${fmt(entDep)} of depreciation, ${ent179 > 0 ? `${fmt(ent179)} expensed under §179` : 'nothing expensed under §179'} and ${entBonus > 0 ? `${fmt(entBonus)} of bonus depreciation` : 'no bonus depreciation'}.${entDep > 0 && ent179 <= 0 && entBonus <= 0 ? ' Assets are being written off over their full recovery period; anything placed in service after January 19, 2025 qualifies for 100% bonus.' : ''}`
+        : nf(f.sec179) > 0 ? `${fmt(nf(f.sec179))} was expensed under §179.` : 'Nothing was expensed under §179.'} The ${taxYear} business-income limit on these figures is ${fmt(nf(lim?.activeBusinessIncome))}. Bonus depreciation is the alternative when purchases exceed income.`,
     }))
   }
 
   // 6. Reasonable compensation.
   if (hasScorp) {
-    const rc = calcReasonableCompCore(nf(f.officerW2), nf(f.k1ScorpOrdinary))
+    // With the 1120-S in hand the test runs on the company's own lines (all
+    // shareholders); otherwise on this owner's W-2 and K-1 share.
+    const sal = S ? nf(S.officerCompensation) : nf(f.officerW2)
+    const inc = S ? nf(S.ordinaryBusinessIncome) : nf(f.k1ScorpOrdinary)
+    const rc = calcReasonableCompCore(sal, inc)
     if (rc.applicable) {
-      const tooHigh = rc.ratio > 0.7 && nf(f.k1ScorpOrdinary) > 0
+      const tooHigh = rc.ratio > 0.7 && inc > 0
+      const dist = S ? nf(S.distributions) : 0
       F.comp.push(finding('comp', 'reasonable-comp', rc.triggered ? 'Officer salary is low relative to S-Corp income' : tooHigh ? 'Officer salary is high relative to S-Corp income' : 'Officer salary is within the range practitioners cite', {
         exposure: rc.triggered,
         basis: 'Rev. Rul. 74-44; Treas. Reg. §1.162-7; David E. Watson, P.C. v. United States, 668 F.3d 1008 (8th Cir. 2012)',
         conditions: 'There is no safe-harbor percentage. Salary must reflect the value of the services actually performed; document the role, hours and comparable wages.',
-        detail: `Salary ${fmt(nf(f.officerW2))} is ${rc.ratioPct}% of total S-Corp compensation (${fmt(nf(f.officerW2) + nf(f.k1ScorpOrdinary))}). ${rc.triggered ? `Below the ${Math.round(SCORP_REASONABLE_COMP_RATIO_THRESHOLD * 100)}% starting benchmark some practitioners use; treat this as a prompt to document how the salary reflects the services.` : tooHigh ? 'A salary this high relative to profit pays FICA on income that could be distribution; review whether it reflects the services.' : 'Keep the documentation that supports it.'}`,
+        detail: `${S ? 'Per the 1120-S, officer' : 'Officer'} salary ${fmt(sal)} is ${rc.ratioPct}% of total S-Corp compensation (${fmt(sal + inc)})${S && dist > 0 ? `, with ${fmt(dist)} taken as distributions` : ''}. ${rc.triggered ? `Below the ${Math.round(SCORP_REASONABLE_COMP_RATIO_THRESHOLD * 100)}% starting benchmark some practitioners use; treat this as a prompt to document how the salary reflects the services.` : tooHigh ? 'A salary this high relative to profit pays FICA on income that could be distribution; review whether it reflects the services.' : 'Keep the documentation that supports it.'}`,
       }))
     }
+    if (!S) {
+      F.comp.push(finding('comp', 'upload-1120s', 'Upload the 1120-S for the full compensation and deduction review', {
+        basis: '', conditions: '',
+        detail: 'The 1040 only shows your K-1 share. The S-Corp return has officer pay, distributions, what the company already deducts (retirement, health insurance, vehicle, rent) and the depreciation schedule. Add it on the upload step for those findings.',
+      }))
+    }
+  }
+  if (C) {
+    const sal = nf(C.officerCompensation), ti = Math.max(0, nf(C.taxableIncome)), div = nf(C.dividendsPaid)
+    F.comp.push(finding('comp', 'ccorp-comp', 'Officer salary in a C-Corp: deductible, but it has to be reasonable', {
+      basis: 'IRC §162(a)(1); Treas. Reg. §1.162-7; Exacto Spring Corp. v. Commissioner, 196 F.3d 833 (7th Cir. 1999)',
+      conditions: 'In a C-Corp the examiner’s question runs the other way: salary that exceeds what the services are worth is recharacterized as a non-deductible dividend. Document the role, hours, comparable pay and how the amount was set.',
+      detail: `Per the 1120, officer compensation is ${fmt(sal)} against ${fmt(ti)} of taxable income after it${div > 0 ? `, with ${fmt(div)} paid as dividends` : ''}. Salary is deducted once at the company and taxed once to you; a dividend is taxed at the company (21%) and again to you.`,
+    }))
+    if (div > 0) {
+      F.comp.push(finding('comp', 'double-tax', 'Dividends are taxed twice; deductible pay is taxed once', {
+        impact: Math.round(div * 0.21),
+        basis: 'IRC §11(b) (21%); IRC §1(h)(11) (qualified dividends); IRC §162(a)(1); IRC §280A(g)',
+        conditions: 'Only to the extent the amount is reasonable compensation, rent, or interest for value actually provided. Salary adds payroll tax (2.9% Medicare above the Social Security wage base), which reduces the net.',
+        detail: `${fmt(div)} went out as dividends. The company paid 21% on that income first (${fmt(Math.round(div * 0.21))}), then you paid tax on the dividend. Paid instead as reasonable salary, bonus, rent (including §280A(g)) or interest on a shareholder loan, it is deductible to the company.`,
+      }))
+    }
+    if (nf(C.totalAssets) > 0 && nf(C.totalAssets) < 50_000_000) {
+      F.more.push(finding('more', 'qsbs', 'Qualified small business stock on a future sale', {
+        basis: 'IRC §1202 as amended by P.L. 119-21',
+        conditions: 'Original-issue C-Corp stock, an active qualified business (not services, finance, hospitality or real estate), gross assets under $75M at issuance for stock issued after July 4, 2025 ($50M before), and a holding period of at least three years for stock issued after that date (five years for earlier stock).',
+        detail: 'A C-Corp whose stock qualifies can exclude gain on sale. Confirm eligibility with your tax pro and keep the issuance records; the exclusion is lost without them.',
+      }))
+    }
+  }
+  if (hasPship && !P) {
+    F.ordinary.push(finding('ordinary', 'upload-1065', 'Upload the 1065 for the partnership deduction review', {
+      basis: '', conditions: '',
+      detail: 'The 1040 only shows your K-1 share. The partnership return has guaranteed payments, what the partnership already deducts, and the depreciation schedule. Add it on the upload step for those findings.',
+    }))
   }
 
   // 7. Everything else the engine already finds, from the prior-year record.
   const cards = buildOpportunities(rec)
   const covered = new Set(['Hire Your Children', 'Home Office Deduction', 'Augusta Rule — IRC §280A(g)', 'Bonus Depreciation', 'Track Your Real Estate Hours', '§179 Equipment Deduction'])
+  const entityRetire = F.ordinary.some(x => x.code === 'entity-retirement')
   for (const c of cards.opportunities) {
     if (covered.has(c.title)) continue
+    if (entityRetire && /^(SEP-IRA|Solo 401\(k\))/.test(c.title)) continue
     F.more.push(finding('more', c.title, c.title, { impact: c.saving || null, detail: c.detail, conditions: c.howTo }))
   }
   if (hasSchedC && nf(f.schedCNet) > 40000) {
@@ -378,6 +665,8 @@ export function buildPriorYearMemo(fieldsIn) {
   const questions = []
   if (hasRental) questions.push('How many hours did I spend on the rentals last year, and where is the log?')
   if (hasScorp) questions.push('How was my officer salary set, and what documents support it?')
+  if (C && nf(C.dividendsPaid) > 0) questions.push('Should part of what came out as dividends have been salary, bonus, rent or a plan contribution instead?')
+  if (S && nf(S.distributions) > 0) questions.push('Where is my stock-basis schedule (Form 7203), and does it support the distributions taken?')
   if (hasBusiness) questions.push('Which of these strategies fit my business, and what records would you want to see first?')
   questions.push('If any of this suggests amending last year, is it worth it after the cost?')
   // Headline total: savings items only, and never two that exclude each other
@@ -386,5 +675,6 @@ export function buildPriorYearMemo(fieldsIn) {
   const hasSolo = all.some(x => x.code.startsWith('Solo 401(k)'))
   const totalImpact = all.reduce((t, x) => t + ((hasSolo && x.code === 'SEP-IRA') ? 0 : nf(x.impact)), 0)
 
-  return Object.freeze({ taxYear, asFiled, scenarios, sections, questions, totalImpact, fields: f })
+  const missingReturns = [...(hasScorp && !S ? ['1120s'] : []), ...(hasPship && !P ? ['1065'] : [])]
+  return Object.freeze({ taxYear, asFiled, scenarios, sections, questions, totalImpact, fields: f, entityReturns: Object.freeze((entityReturns || []).map(r => r.kind)), missingReturns: Object.freeze(missingReturns) })
 }
