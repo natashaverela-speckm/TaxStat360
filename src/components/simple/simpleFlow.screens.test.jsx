@@ -38,7 +38,7 @@ afterEach(cleanup)
 describe('Screen 1 — Start', () => {
   it('shows the five tiles, retires the welcome tour, and carries no jargon', () => {
     mountAt('/start')
-    expect(screen.getByText('Which one are you?')).toBeInTheDocument()
+    expect(screen.getByText('Which one describes your situation?')).toBeInTheDocument()
     const tiles = screen.getAllByRole('listitem')
     // five persona tiles, plus the "Review last year's return" tile when that flag is on
     expect(tiles).toHaveLength(PRIOR_YEAR_REVIEW_ENABLED ? 6 : 5)
@@ -123,7 +123,7 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     mountAt('/result')
     expect(screen.getByText('Nothing to show yet')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Start →'))
-    expect(screen.getByText('Which one are you?')).toBeInTheDocument()
+    expect(screen.getByText('Which one describes your situation?')).toBeInTheDocument()
   })
 
   it('Advanced is one click from every screen', () => {
