@@ -111,6 +111,8 @@ import { nf } from '../utils/money.js'
 // strictly more robust than a local copy. (nv alias removed — audit finding 3.2.)
 const TAX_TABLES = {
   2024: {
+    // Sources the figures below were transcribed from (annual-update guard: tests/taxTables-completeness).
+    verifiedBy: 'Rev. Proc. 2023-34 (brackets, std, §179, LTCG); IRS Notice 2023-75 (retirement); Rev. Proc. 2023-23 (HSA); SSA 2024 wage base',
     std: { single: 14600, mfj: 29200, mfs: 14600, hoh: 21900, qss: 29200 },
     addlStdAged: { married: 1550, unmarried: 1950 },   // §63(f)(1),(3) — Rev. Proc. 2023-34 (OCT-19 M-7a)
     sec179: { cap: 1220000, phaseOutStart: 3050000 },  // Rev. Proc. 2023-34 §3.26
@@ -155,6 +157,7 @@ const TAX_TABLES = {
     },
   },
   2025: {
+    verifiedBy: 'Rev. Proc. 2024-40 as amended by P.L. 119-21 (OBBBA); IRS Notice 2024-80 (retirement); Rev. Proc. 2024-25 (HSA); SSA 2025 wage base',
     std: { single: 15750, mfj: 31500, mfs: 15750, hoh: 23625, qss: 31500 },
     addlStdAged: { married: 1600, unmarried: 2000 },   // §63(f)(1),(3) — Rev. Proc. 2024-40 (OCT-19 M-7a)
     sec179: { cap: 2500000, phaseOutStart: 4000000 },  // P.L. 119-21 (OBBBA) §70306 statutory reset
@@ -206,6 +209,7 @@ const TAX_TABLES = {
   // §179, EBL, SALT), IRS Notice 2025-67 (retirement limits), and Rev. Proc. 2025-19
   // (HSA). Re-confirm against the IRS inflation Rev. Proc. each filing season.
   2026: {
+    verifiedBy: 'Rev. Proc. 2025-32 (brackets, std, §179, LTCG, EBL, SALT); IRS Notice 2025-67 (retirement); Rev. Proc. 2025-19 (HSA); SSA 2026 wage base',
     std: { single: 16100, mfj: 32200, mfs: 16100, hoh: 24150, qss: 32200 },
     addlStdAged: { married: 1650, unmarried: 2050 },   // §63(f)(1),(3) — Rev. Proc. 2025-32 (OCT-19 M-7a)
     sec179: { cap: 2560000, phaseOutStart: 4090000 },  // Rev. Proc. 2025-32 (§179(b)(6) indexing)

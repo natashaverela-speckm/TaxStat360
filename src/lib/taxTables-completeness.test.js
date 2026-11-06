@@ -28,6 +28,23 @@ const REQUIRED_NESTED = {
 }
 const FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh', 'qss']
 
+describe('every supported year names the IRS releases its figures came from', () => {
+  // The annual update adds a year block; this is what stops a year going live on
+  // guessed numbers. A verifiedBy string has to name at least one Rev. Proc. or
+  // Notice, and the latest year must be verified against a release published for it.
+  for (const year of SUPPORTED_TAX_YEARS) {
+    it(`${year} has a verifiedBy source line`, () => {
+      const v = (TAX_TABLES[year] || {}).verifiedBy
+      expect(typeof v === 'string' && v.length > 20, `TAX_TABLES[${year}].verifiedBy is missing`).toBe(true)
+      expect(v).toMatch(/Rev\. Proc\. \d{4}-\d+|Notice \d{4}-\d+/)
+    })
+  }
+  it('the latest year cites a release from the preceding calendar year (the October/November inflation releases)', () => {
+    const latest = SUPPORTED_TAX_YEARS[SUPPORTED_TAX_YEARS.length - 1]
+    expect(TAX_TABLES[latest].verifiedBy).toMatch(new RegExp(`(Rev\\. Proc\\.|Notice) ${latest - 1}-\\d+`))
+  })
+})
+
 describe('TAX_TABLES completeness for every supported year', () => {
   it('SUPPORTED_TAX_YEARS mirrors the keys present in TAX_TABLES', () => {
     for (const year of SUPPORTED_TAX_YEARS) {
