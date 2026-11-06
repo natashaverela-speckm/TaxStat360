@@ -53,6 +53,12 @@ export function seedCurrentYearFromReview(fields, entityReturns = []) {
     selfEmpRetirement: f.selfEmpRetirement,
     hsaDeduction: f.hsaDeduction,
     selfEmpHealthIns: f.selfEmpHealthIns,
+    // Carryforwards: the reviewed return's "carried to next year" lines are this
+    // year's opening balances. (The suspended rental loss rides on the entity as priorPAL.)
+    capLossCarryforwardST: nf(f.capLossCarryforwardST),
+    capLossCarryforwardLT: nf(f.capLossCarryforwardLT),
+    nolCarryforward: nf(f.nolCarryforward),
+    priorYearQBILoss: nf(f.priorYearQBILoss),
   })
   clearActiveRecord()
   writeDirtyFlag(true)
