@@ -8,9 +8,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
-import { selectSimpleResult, sortCardsBySaving, resetWorkingFigures } from '../../lib/simpleFlow.js'
-import { fmt, pct, effectiveRate } from '../../utils/money.js'
-import { NAVY as N, SLATE as SL, BLUE as B, SUCCESS_TEXT } from '../../lib/theme.js'
+import MoneyInput from '../MoneyInput.jsx'
+import { selectSimpleResult, sortCardsBySaving, resetWorkingFigures, RESULT_FIELDS, writeResultField, saveSimpleRecord } from '../../lib/simpleFlow.js'
+import { ADVANCED_HIDDEN } from '../../lib/pnlUpload.js'
+import { readPersonalContext } from '../../utils/sessionState.js'
+import { fmt, pct, effectiveRate, nf } from '../../utils/money.js'
+import { NAVY as N, SLATE as SL, BLUE as B, RED as R, SUCCESS_TEXT } from '../../lib/theme.js'
 
 function longDate(iso) {
   if (!iso) return ''
@@ -54,9 +57,48 @@ function Card({ o }) {
   )
 }
 
+function MoreAccurate({ onChange }) {
+  const pc = readPersonalContext()
+  const [v, setV] = useState(() => Object.fromEntries(RESULT_FIELDS.map(f => [f.key, nf(pc[f.key]) ? String(nf(pc[f.key])) : ''])))
+  const commit = (key) => (val) => {
+    setV(p => ({ ...p, [key]: val }))
+    writeResultField(key, val)
+    onChange()
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+      {RESULT_FIELDS.map(f => (
+        <div key={f.key}>
+          <label htmlFor={`rs-${f.key}`} style={{ display: 'block', fontSize: 13, fontWeight: 700, color: N, marginBottom: 4 }}>{f.label}</label>
+          <MoneyInput id={`rs-${f.key}`} value={v[f.key]} onChange={commit(f.key)} nonNegative placeholder="0" ariaLabel={f.label} style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 10, fontSize: 15, color: N, background: '#fff', boxSizing: 'border-box' }} />
+          <div style={{ fontSize: 12, color: SL, marginTop: 4 }}>{f.help}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SaveInline() {
+  const [name, setName] = useState('')
+  const [state, setState] = useState('idle')   // idle | saving | saved | error
+  const save = async () => {
+    setState('saving')
+    try { await saveSimpleRecord(name); setState('saved'); setTimeout(() => setState('idle'), 3000) }
+    catch { setState('error') }
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Name it (optional)" aria-label="Record name" style={{ padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 10, fontSize: 14, color: N, minWidth: 180 }} />
+      <button onClick={save} disabled={state === 'saving'} style={{ ...linkBtn, background: B, color: '#fff', border: '1px solid ' + B }}>{state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved ✓' : 'Save this record'}</button>
+      {state === 'error' && <span role="alert" style={{ fontSize: 13, color: R }}>Save failed. Try again.</span>}
+    </div>
+  )
+}
+
 export default function ResultScreen() {
   const nav = useNavigate()
-  const { summary, cards, taxYear, entities } = useMemo(() => selectSimpleResult(), [])
+  const [tick, setTick] = useState(0)
+  const { summary, cards, taxYear, entities } = useMemo(() => selectSimpleResult(), [tick])   // eslint-disable-line react-hooks/exhaustive-deps
   const ok = summary && summary.ok
   const hasInputs = Array.isArray(entities) && entities.length > 0
 
@@ -112,18 +154,35 @@ export default function ResultScreen() {
 
       <section aria-label="Make it more accurate" style={{ marginTop: 22 }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, color: N, margin: '0 0 8px' }}>Make it more accurate</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
-          <button style={linkBtn} onClick={() => nav('/personal-estimate?section=adjustments')}>Add retirement or HSA contributions →</button>
-          <button style={linkBtn} onClick={() => nav('/personal-estimate?section=payments')}>Add estimated payments I've made →</button>
-          <button style={linkBtn} onClick={() => nav('/calculate-tax')}>Add another business or property →</button>
-          <button style={linkBtn} onClick={() => nav('/carryforward-wizard')}>Add prior-year carryforwards →</button>
-        </div>
-        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => nav('/personal-estimate')} style={{ ...linkBtn, background: B, color: '#fff', border: '1px solid ' + B }}>Save this record</button>
-          <button onClick={() => nav('/ai-analysis')} style={linkBtn}>Share with my CPA (export)</button>
-          <button onClick={() => { resetWorkingFigures(); nav('/start') }} style={linkBtn}>Start over</button>
-        </div>
-        <p style={{ fontSize: 12, color: SL, marginTop: 10, lineHeight: 1.5 }}>Saving and the CPA export open the full form, where every number above can be refined. Nothing you typed is lost.</p>
+        {ADVANCED_HIDDEN ? (
+          <>
+            <p style={{ fontSize: 13, color: SL, margin: '0 0 12px' }}>Optional. The number above updates as you type.</p>
+            <MoreAccurate onChange={() => setTick(t => t + 1)} />
+            <div style={{ marginTop: 10 }}>
+              <button style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }} onClick={() => nav('/review')}>Have last year's return? Upload it and the carryforwards fill in →</button>
+            </div>
+            <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <SaveInline />
+              <button onClick={() => nav('/ai-analysis')} style={linkBtn}>Share with my CPA (export)</button>
+              <button onClick={() => { resetWorkingFigures(); nav('/start') }} style={linkBtn}>Start over</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+              <button style={linkBtn} onClick={() => nav('/personal-estimate?section=adjustments')}>Add retirement or HSA contributions →</button>
+              <button style={linkBtn} onClick={() => nav('/personal-estimate?section=payments')}>Add estimated payments I've made →</button>
+              <button style={linkBtn} onClick={() => nav('/calculate-tax')}>Add another business or property →</button>
+              <button style={linkBtn} onClick={() => nav('/carryforward-wizard')}>Add prior-year carryforwards →</button>
+            </div>
+            <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => nav('/personal-estimate')} style={{ ...linkBtn, background: B, color: '#fff', border: '1px solid ' + B }}>Save this record</button>
+              <button onClick={() => nav('/ai-analysis')} style={linkBtn}>Share with my CPA (export)</button>
+              <button onClick={() => { resetWorkingFigures(); nav('/start') }} style={linkBtn}>Start over</button>
+            </div>
+            <p style={{ fontSize: 12, color: SL, marginTop: 10, lineHeight: 1.5 }}>Saving and the CPA export open the full form, where every number above can be refined. Nothing you typed is lost.</p>
+          </>
+        )}
       </section>
     </SimpleShell>
   )

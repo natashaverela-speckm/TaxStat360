@@ -22,7 +22,9 @@ import {
   readStep1State, writeStep1State,
   readTaxYear, writeTaxYear,
   writeDirtyFlag, clearActiveRecord, clearStep1State,
+  readActiveRecordId, readUserRecords, writeActiveRecord, syncRecordToServer,
 } from '../utils/sessionState.js'
+import { formatTimestamp } from '../utils/money.js'
 
 export const SIMPLE_FLOW_ENABLED = (() => {
   try {
@@ -204,6 +206,52 @@ export function writeSimpleFlowState(input) {
   clearActiveRecord()
   writeDirtyFlag(true)
   return entity
+}
+
+/** The few personal figures the Result screen edits in place (with Advanced
+ *  hidden these are the only ways in). Each maps to a personal-context key the
+ *  engine already reads. */
+export const RESULT_FIELDS = Object.freeze([
+  { key: 'estPaid',           label: "Estimated payments I've made this year",      help: 'What you have already sent the IRS for this year.' },
+  { key: 'w2Withheld',        label: 'Federal tax withheld from paychecks',          help: 'From your pay stubs or W-2 so far this year.' },
+  { key: 'selfEmpRetirement', label: 'Retirement contributions deducted',           help: 'SEP, SIMPLE or solo 401(k) employer contributions for this year.' },
+  { key: 'hsaDeduction',      label: 'HSA contributions',                            help: 'Only if you have a high-deductible health plan.' },
+])
+
+export function writeResultField(key, value) {
+  if (!RESULT_FIELDS.some(f => f.key === key)) throw new Error(`simpleFlow: unknown result field ${key}`)
+  writePersonalContext({ ...readPersonalContext(), [key]: Math.max(0, nf(value)) })
+  writeDirtyFlag(true)
+}
+
+/** Save the live session as a record the rest of the app (records list, AI
+ *  Analysis, Aria, CPA export) reads: same shape the Advanced return saves.
+ *  Upserts the active record when there is one, else creates one. */
+export async function saveSimpleRecord(name) {
+  const { summary, rec, taxYear } = selectSimpleResult()
+  const activeId = readActiveRecordId()
+  const existing = readUserRecords().find(r => activeId != null && String(r.id) === String(activeId))
+  const id = existing ? existing.id : Date.now()
+  const label = (name && String(name).trim()) || (existing && existing.name) || `${rec.biz?.entityType || 'Estimate'} ${taxYear}`
+  const pc = rec.f1040 || {}
+  const record = {
+    ...rec,
+    id,
+    name: label,
+    savedAt: formatTimestamp(new Date()),
+    filingStatus: pc.filingStatus || 'single',
+    dependents: nf(pc.dependents),
+    w2Income: nf(pc.w2Income),
+    w2Withheld: nf(pc.w2Withheld),
+    estPaid: nf(pc.estPaid),
+    quarterly: summary?.ok ? nf(summary.quarterlyRecommended) : 0,
+    totalTax: summary?.ok ? nf(summary.totalTax) : 0,
+    step2Computed: !!(summary && summary.ok),
+  }
+  const saved = await syncRecordToServer(record)
+  writeActiveRecord(saved.id, saved.name || saved.savedAt)
+  writeDirtyFlag(false)
+  return saved
 }
 
 /** "Start over": drop the working figures (entities, personal context, active

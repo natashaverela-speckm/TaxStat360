@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import BrandLogo from '../BrandLogo'
 import { signOut } from '../../utils/SignOut'
 import { NAVY as N, SLATE as SL } from '../../lib/theme.js'
+import { ADVANCED_HIDDEN } from '../../lib/pnlUpload.js'
 
 const linkStyle = (active) => ({
   padding: '8px 12px', border: '1px solid ' + (active ? N : '#E2E8F0'), borderRadius: 8,
@@ -25,7 +26,7 @@ export default function SimpleShell({ step, children, maxWidth = 640 }) {
         </button>
         <nav aria-label="Primary" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button onClick={() => nav('/result')} style={linkStyle(step === 'result')}>Your result</button>
-          <button onClick={() => nav('/calculate-tax')} style={linkStyle(false)} title="Every field, including the ones this flow skips">Advanced</button>
+          {!ADVANCED_HIDDEN && <button onClick={() => nav('/calculate-tax')} style={linkStyle(false)} title="Every field, including the ones this flow skips">Advanced</button>}
           <button onClick={() => nav('/settings')} style={linkStyle(false)}>Settings</button>
           <button onClick={() => signOut(nav)} style={{ ...linkStyle(false), color: SL }}>Sign out</button>
         </nav>
