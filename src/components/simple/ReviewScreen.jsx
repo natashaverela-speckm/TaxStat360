@@ -12,7 +12,7 @@
 // Language: opportunity analysis. Never "the return was wrong", never an amended
 // figure, never anything addressed to the IRS. The file is never stored here: the
 // API deletes it after processing and this component keeps only the numbers.
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
 import MoneyInput from '../MoneyInput.jsx'
@@ -20,7 +20,8 @@ import { prepareTax1040TextForUpload } from '../../lib/pdfTextGate.js'
 import { extractTax1040ReviewText } from '../../lib/carryforwardExtractClient.js'
 import {
   TAX_1040_REVIEW_FIELDS, normalizeReviewFields, buildPriorYearMemo, buildReviewEntities, mergeEntityReturns,
-  ENTITY_RETURN_KINDS, ENTITY_RETURN_FIELDS, detectReturnType,
+  ENTITY_RETURN_KINDS, ENTITY_RETURN_FIELDS, detectReturnType, reconcileReview,
+  HEADLINE_REVIEW_KEYS, HEADLINE_ENTITY_KEYS,
 } from '../../lib/priorYearReview.js'
 import { sumK1FlowThrough } from '../../lib/taxCalc.js'
 import { CURRENT_TAX_YEAR } from '../../lib/constants.js'
@@ -190,30 +191,65 @@ function initialValues(defs, initial) {
   return out
 }
 
+/** Headline lines, plus anything the extractor was unsure of, plus (on request) everything. */
+function pickDefs(defs, headlineKeys, confidence, v, showAll) {
+  if (showAll) return defs
+  const head = new Set(headlineKeys)
+  return defs.filter(f => head.has(f.key) || ((confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && v[f.key] !== ''))
+}
+
+function SelfCheck({ recon }) {
+  if (!recon.checked) return null
+  const box = { marginBottom: 12, padding: '12px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.6 }
+  if (recon.ok) {
+    return (
+      <div role="status" style={{ ...box, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#166534' }}>
+        <strong>Self-check passed.</strong> Recomputing the return from these figures lands on the return's own income and tax{recon.tax ? ` (${fmt(recon.tax.computed)} vs ${fmt(recon.tax.filed)} on the return)` : ''}, so the read is sound.
+      </div>
+    )
+  }
+  return (
+    <div role="alert" style={{ ...box, background: '#FFF7ED', border: '1px solid #FED7AA', color: '#9A3412' }}>
+      <strong>Something was misread.</strong> Recomputing the return from these figures gives{recon.agi ? ` income of ${fmt(recon.agi.computed)} (return: ${fmt(recon.agi.filed)})` : ''}{recon.agi && recon.tax ? ' and' : ''}{recon.tax ? ` tax of ${fmt(recon.tax.computed)} (return: ${fmt(recon.tax.filed)})` : ''}.
+      {recon.hints.map(h => <div key={h} style={{ marginTop: 6 }}>{h}</div>)}
+      <div style={{ marginTop: 6 }}>Fix the figure here, or open all fields below to find it. You can continue anyway; the memo will carry this warning.</div>
+    </div>
+  )
+}
+
 function ConfirmStep({ initial, confidence, entities = [], onConfirm, onBack }) {
   const [v, setV] = useState(() => initialValues(TAX_1040_REVIEW_FIELDS, initial))
   const [ev, setEv] = useState(() => entities.map(e => initialValues(ENTITY_RETURN_FIELDS[e.kind], e.fields || {})))
+  const [showAll, setShowAll] = useState(false)
   const set = (k) => (val) => setV(p => ({ ...p, [k]: val }))
   const setE = (i) => (k) => (val) => setEv(p => p.map((x, j) => j === i ? { ...x, [k]: val } : x))
+  const entityReturns = entities.map((e, i) => ({ kind: e.kind, fields: ev[i] }))
+  const recon = useMemo(() => reconcileReview(v, entityReturns), [v, ev])   // eslint-disable-line react-hooks/exhaustive-deps
   const lowCount = TAX_1040_REVIEW_FIELDS.filter(f => (confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && v[f.key] !== '').length
     + entities.reduce((t, e, i) => t + ENTITY_RETURN_FIELDS[e.kind].filter(f => (e.confidence?.[f.key] ?? 1) < LOW_CONFIDENCE && ev[i][f.key] !== '').length, 0)
+  const defs1040 = pickDefs(TAX_1040_REVIEW_FIELDS, HEADLINE_REVIEW_KEYS, confidence, v, showAll)
+  const hiddenCount = TAX_1040_REVIEW_FIELDS.length - defs1040.length + entities.reduce((t, e, i) => t + ENTITY_RETURN_FIELDS[e.kind].length - pickDefs(ENTITY_RETURN_FIELDS[e.kind], HEADLINE_ENTITY_KEYS[e.kind], e.confidence, ev[i], showAll).length, 0)
   return (
     <div>
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: SL, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 10 }}>← Upload a different file</button>
       <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 6px' }}>Here's what we read</h1>
       <p style={{ fontSize: 14, color: SL, margin: '0 0 14px', lineHeight: 1.6 }}>
-        Check each figure against the return and fix anything that's off. Blank means it wasn't on the return.
+        Check these lines against the return and fix anything that's off. Blank means it wasn't on the return.
         {lowCount > 0 && <> <span style={{ color: O, fontWeight: 700 }}>{lowCount} field{lowCount === 1 ? '' : 's'}</span> {lowCount === 1 ? 'is' : 'are'} marked because we weren't sure of the number.</>}
       </p>
+      <SelfCheck recon={recon} />
       {entities.length > 0 && <h2 style={{ fontSize: 15, fontWeight: 800, color: N, margin: '0 0 10px' }}>Personal return (1040)</h2>}
-      <FieldTable defs={TAX_1040_REVIEW_FIELDS} v={v} set={set} confidence={confidence} idPrefix="rv-" />
+      <FieldTable defs={defs1040} v={v} set={set} confidence={confidence} idPrefix="rv-" />
       {entities.map((e, i) => (
         <div key={e.name || i} aria-label={ENTITY_RETURN_KINDS[e.kind].label}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: N, margin: '18px 0 10px' }}>{ENTITY_RETURN_KINDS[e.kind].label}{e.name ? <span style={{ fontSize: 12, fontWeight: 500, color: SL }}> · {e.name}</span> : null}</h2>
-          <FieldTable defs={ENTITY_RETURN_FIELDS[e.kind]} v={ev[i]} set={setE(i)} confidence={e.confidence} idPrefix={`rv-${e.kind}-${i}-`} />
+          <FieldTable defs={pickDefs(ENTITY_RETURN_FIELDS[e.kind], HEADLINE_ENTITY_KEYS[e.kind], e.confidence, ev[i], showAll)} v={ev[i]} set={setE(i)} confidence={e.confidence} idPrefix={`rv-${e.kind}-${i}-`} />
         </div>
       ))}
-      <button onClick={() => onConfirm(v, entities.map((e, i) => ({ kind: e.kind, fields: ev[i] })))} style={{ ...btnPrimary, width: '100%' }}>These are right — show me the findings →</button>
+      <button onClick={() => setShowAll(a => !a)} aria-expanded={showAll} style={{ ...btnQuiet, width: '100%', marginBottom: 12 }}>
+        {showAll ? 'Show only the key lines' : `Show all fields${hiddenCount ? ` (${hiddenCount} more, read automatically)` : ''}`}
+      </button>
+      <button onClick={() => onConfirm(v, entityReturns)} style={{ ...btnPrimary, width: '100%' }}>These are right — show me the findings →</button>
     </div>
   )
 }
@@ -255,6 +291,11 @@ function MemoStep({ fields, entityReturns = [], onBack, onNext }) {
         <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.5 }}>
           estimated across {memo.sections.flatMap(s => s.findings).filter(x => !x.exposure && x.impact).length} items, at the figures you confirmed{memo.entityReturns.length ? ` from the 1040 and the ${memo.entityReturns.map(k => ENTITY_RETURN_KINDS[k].short).join(' and ')}` : ''}{tax !== null ? `, against ${fmt(tax)} of federal tax computed on those figures` : ''}. Estimates, not a determination; some items exclude each other.
         </div>
+        {memo.reconciliation.checked && !memo.reconciliation.ok && (
+          <div role="alert" style={{ marginTop: 12, fontSize: 13, background: '#FFF7ED', color: '#9A3412', padding: '8px 10px', borderRadius: 8 }}>
+            Self-check did not pass: recomputing from the confirmed figures does not land on the return's own totals, so something was misread. Treat these findings as provisional and go back to fix the figure.
+          </div>
+        )}
         {memo.missingReturns.length > 0 && (
           <div style={{ marginTop: 12, fontSize: 13, background: 'rgba(255,255,255,0.1)', padding: '8px 10px', borderRadius: 8 }}>
             Add the {memo.missingReturns.map(k => ENTITY_RETURN_KINDS[k].short).join(' and ')} on the upload step for the compensation and deduction findings that only the business return shows.

@@ -5,6 +5,7 @@ import {
   TAX_1040_REVIEW_FIELDS, TAX_1040_REVIEW_FIELD_KEYS, normalizeReviewFields,
   buildReviewRecord, buildReviewEntities, buildPriorYearMemo, REVIEW_PROFILE,
   ENTITY_RETURN_FIELDS, ENTITY_RETURN_KINDS, normalizeEntityFields, detectReturnType, mergeEntityReturns,
+  reconcileReview, HEADLINE_REVIEW_KEYS, HEADLINE_ENTITY_KEYS,
 } from './priorYearReview.js'
 import { summarizeRecord } from '../utils/calcSelector.js'
 
@@ -263,5 +264,48 @@ describe('memo with the entity return', () => {
     expect(m.sections.find(s => s.id === 'sec179').findings[0].detail).toMatch(/1120 shows \$12,000 of depreciation/)
     expect(m.missingReturns).toEqual([])
     expect(m.entityReturns).toEqual(['1120'])
+  })
+})
+
+describe('self-check (reconcileReview)', () => {
+  const GOOD = { ...SCORP_RENTAL, dependents: 2, agi: 293880, totalTax: 38799 }
+
+  it('passes on a return whose totals the engine reproduces', () => {
+    const r = reconcileReview(GOOD)
+    expect(r.checked && r.ok).toBe(true)
+    expect(r.hints).toEqual([])
+  })
+
+  it('is skipped when the return carried no totals', () => {
+    expect(reconcileReview({ ...SCORP_RENTAL, agi: 0, totalTax: 0 }).checked).toBe(false)
+  })
+
+  it('a K-1 loss read as income fails on income with the parentheses hint', () => {
+    const r = reconcileReview({ ...GOOD, k1ScorpOrdinary: -113880 })
+    expect(r.ok).toBe(false)
+    expect(r.agi.ok).toBe(false)
+    expect(r.hints[0]).toMatch(/parentheses/)
+  })
+
+  it('a wrong filing status fails on tax only and points at the status', () => {
+    const r = reconcileReview({ ...GOOD, filingStatus: 'single' })
+    expect(r.agi.ok).toBe(true)
+    expect(r.tax.ok).toBe(false)
+    expect(r.hints[0]).toMatch(/filing status first/)
+  })
+
+  it('tolerance: within 8% or $1,000 passes', () => {
+    expect(reconcileReview({ ...GOOD, totalTax: 38799 + 900 }).ok).toBe(true)
+    expect(reconcileReview({ ...GOOD, totalTax: Math.round(38799 * 1.07) }).ok).toBe(true)
+    expect(reconcileReview({ ...GOOD, totalTax: Math.round(38799 * 1.2) }).ok).toBe(false)
+  })
+
+  it('headline keys exist in the contracts', () => {
+    const keys = new Set(TAX_1040_REVIEW_FIELD_KEYS)
+    for (const k of HEADLINE_REVIEW_KEYS) expect(keys.has(k)).toBe(true)
+    for (const kind of Object.keys(HEADLINE_ENTITY_KEYS)) {
+      const ek = new Set(ENTITY_RETURN_FIELDS[kind].map(f => f.key))
+      for (const k of HEADLINE_ENTITY_KEYS[kind]) expect(ek.has(k)).toBe(true)
+    }
   })
 })
