@@ -60,6 +60,7 @@ export function seedCurrentYearFromReview(fields, entityReturns = []) {
     capLossCarryforwardLT: nf(f.capLossCarryforwardLT),
     nolCarryforward: nf(f.nolCarryforward),
     priorYearQBILoss: nf(f.priorYearQBILoss),
+    priorYearLosses: nf(f.priorYearQBILoss),
   })
   clearActiveRecord()
   writeDirtyFlag(true)
