@@ -40,10 +40,13 @@ describe('UI must bind to the tables, not hardcode the figures', () => {
     expect(src).toMatch(/QBI_THRESHOLDS\[2026\]\.single/)
   })
 
-  it('AIAnalysis HSA badge is year-bound, not the stale $4,300 literal', () => {
-    const src = read('../components/AIAnalysis.jsx')
+  it('HSA badge is year-bound, not the stale $4,300 literal', () => {
+    // PHASE 1 (simple flow, Nov 2026): the opportunity cards moved verbatim to
+    // src/lib/opportunities.js so the result screen shares them. Same guard, new home.
+    const src = read('./opportunities.js')
     expect(src).not.toMatch(/Math\.round\(4300 \* marginalRate\)/)
     expect(src).toMatch(/hsa\?\.selfOnly/)
+    expect(read('../components/AIAnalysis.jsx')).not.toMatch(/Math\.round\(4300 \* marginalRate\)/)
   })
 
   it('TaxReturn HSA tooltip is year-bound, not the stale 2025 literals', () => {
@@ -125,13 +128,13 @@ describe('AUDIT H4 — §179 figures come from the table the engine uses', () =>
   })
 
   it('the opportunity card no longer hardcodes the 2025 figures', () => {
-    const src = read('../components/AIAnalysis.jsx')
+    const src = read('./opportunities.js') + read('../components/AIAnalysis.jsx')
     expect(src).not.toMatch(/up to \$2\.5M in 2025/)
     expect(src).not.toMatch(/phase-out begins above \$4M/)
   })
 
   it('the card binds to getTable(year).sec179', () => {
-    const src = read('../components/AIAnalysis.jsx')
+    const src = read('./opportunities.js')   // PHASE 1: card lives in the lib module now
     const card = src.slice(src.indexOf('§179 Equipment Deduction'))
     expect(src).toMatch(/getTable\(year\)\?\.sec179/)
     expect(card.slice(0, 1200)).toMatch(/_sec179Cap/)
