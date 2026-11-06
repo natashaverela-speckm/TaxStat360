@@ -20,7 +20,7 @@ vi.mock('../../lib/pdfTextGate.js', () => ({
 const FIELDS_1040 = {
   taxYear: 2025, filingStatus: 'mfj', dependents: 2, w2Wages: 180000, w2Withheld: 20000, officerW2: 80000,
   k1ScorpOrdinary: 113880, schedERent: 42000, schedEExpenses: 30000, schedEDepreciation: 28000, rentalBuildingBasis: 400000,
-  depreciationTotal: 28000, qbiDeduction: 18500, agi: 262000, totalTax: 43199, estimatedPaymentsMade: 12000, underpaymentPenalty: 612, priorPassiveLossCarryforward: 9000,
+  depreciationTotal: 28000, qbiDeduction: 18500, agi: 278880, totalTax: 35199, estimatedPaymentsMade: 12000, underpaymentPenalty: 612, priorPassiveLossCarryforward: 9000,
   capLossCarryforwardST: 1500, capLossCarryforwardLT: 7000, nolCarryforward: 12000, priorYearQBILoss: 3000,
 }
 const FIELDS_1120S = {
@@ -87,6 +87,10 @@ describe('ReviewScreen', () => {
     expect(document.body.textContent).toMatch(/double-check/)
     // no §/form numbers in the labels (sources may carry them)
     for (const el of screen.getAllByRole('textbox')) expect(el.getAttribute('aria-label') || '').not.toMatch(/§|Form \d/)
+    // only the key lines show by default; the rest are behind "Show all fields"
+    expect(screen.queryByLabelText('Underpayment penalty')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent(/Self-check passed/)
+    fireEvent.click(screen.getByText(/Show all fields/))
     // edit a figure before confirming
     fireEvent.change(screen.getByLabelText('Underpayment penalty'), { target: { value: '900' } })
     fireEvent.click(screen.getByText(/These are right/))
@@ -141,6 +145,7 @@ describe('ReviewScreen', () => {
     expect(within(scorp).getByLabelText('Officer salary (W-2 from the company)').value).toBe('80,000')
     expect(within(scorp).getByLabelText('Distributions to shareholders').value).toBe('150,000')
     expect(document.body.textContent).toMatch(/2 fields are marked/)   // k1 on the 1040, distributions on the 1120-S
+    fireEvent.click(screen.getByText(/Show all fields/))
     fireEvent.change(within(scorp).getByLabelText('Loans to shareholders (year end)'), { target: { value: '0' } })
     fireEvent.click(screen.getByText(/These are right/))
 
@@ -174,5 +179,25 @@ describe('ReviewScreen', () => {
     expect(await screen.findByText(/What 2025 left on the table/)).toBeInTheDocument()
     expect(document.body.textContent).toMatch(/Dividends are taxed twice/)
     expect(document.body.textContent).toMatch(/from the 1040 and the 1120\b/)
+  })
+
+  it('self-check: a K-1 loss read as income trips the warning, fixing it clears it, and the memo carries it if ignored', async () => {
+    mount()
+    fireEvent.change(document.getElementById('review-file'), { target: { files: [pdf()] } })
+    fireEvent.click(await screen.findByText(/Check the figures/))
+    expect(await screen.findByRole('status')).toHaveTextContent(/Self-check passed/)
+    // flip the K-1 sign: income rises, tax rises, the check trips with the K-1 hint
+    fireEvent.change(screen.getByLabelText('S-Corp income (K-1)'), { target: { value: '-113880' } })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/Something was misread/)
+    expect(alert).toHaveTextContent(/loss is printed in parentheses/)
+    fireEvent.change(screen.getByLabelText('S-Corp income (K-1)'), { target: { value: '113880' } })
+    expect(await screen.findByRole('status')).toHaveTextContent(/Self-check passed/)
+    // a wrong filing status with matching income points at the status
+    fireEvent.change(screen.getByLabelText(/^Filing status/), { target: { value: 'single' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/check the filing status first/)
+    fireEvent.click(screen.getByText(/These are right/))
+    expect(await screen.findByText(/What 2025 left on the table/)).toBeInTheDocument()
+    expect(document.body.textContent).toMatch(/Self-check did not pass/)
   })
 })

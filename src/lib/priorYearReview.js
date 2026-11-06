@@ -322,6 +322,56 @@ export function buildReviewRecord(f, rental = 'filed') {
   }
 }
 
+// ── Self-check ──────────────────────────────────────────────────────────────
+// The engine recomputes the return from what was read and compares it to the
+// return's own totals. A misread filing status, a K-1 loss read as income, a
+// missed W-2: each moves the recomputed tax away from line 24, so the mismatch
+// surfaces before anyone sees a memo. The engine is not a filing engine, so
+// the tolerance is wide enough for credits and odd items it does not model.
+
+/** The lines a member has to confirm. Everything else is auto-accepted unless
+ *  the extractor was unsure of it. */
+export const HEADLINE_REVIEW_KEYS = Object.freeze([
+  'taxYear', 'filingStatus', 'w2Wages', 'schedCNet', 'k1ScorpOrdinary', 'k1PartnershipOrdinary',
+  'schedERent', 'agi', 'totalTax', 'w2Withheld', 'estimatedPaymentsMade',
+])
+export const HEADLINE_ENTITY_KEYS = Object.freeze({
+  '1120s': ['taxYear', 'grossReceipts', 'officerCompensation', 'ordinaryBusinessIncome', 'distributions'],
+  '1065':  ['taxYear', 'grossReceipts', 'guaranteedPayments', 'ordinaryBusinessIncome', 'distributions'],
+  '1120':  ['taxYear', 'grossReceipts', 'officerCompensation', 'taxableIncome', 'totalTax', 'dividendsPaid'],
+})
+
+export const RECONCILE_TOLERANCE = Object.freeze({ pct: 0.08, floor: 1000 })
+
+function within(a, b, tol = RECONCILE_TOLERANCE) {
+  const diff = Math.abs(nf(a) - nf(b))
+  return diff <= Math.max(tol.floor, Math.abs(nf(b)) * tol.pct)
+}
+
+/**
+ * @returns frozen { checked: boolean, ok: boolean, agi: {filed, computed, ok}, tax: {filed, computed, ok}, hints: string[] }
+ *   checked=false when the return carried no totals to compare against.
+ */
+export function reconcileReview(fieldsIn, entityReturns = []) {
+  const f = mergeEntityReturns(normalizeReviewFields(fieldsIn), entityReturns)
+  const filedAgi = nf(f.agi), filedTax = nf(f.totalTax)
+  if (!filedAgi && !filedTax) return Object.freeze({ checked: false, ok: true, agi: null, tax: null, hints: [] })
+  const sum = summarizeRecord(buildReviewRecord(f, 'filed'))
+  if (!sum.ok) return Object.freeze({ checked: true, ok: false, agi: null, tax: null, hints: ['The figures could not be computed as a return. Check the business and rental lines.'] })
+  const agi = { filed: filedAgi, computed: Math.round(nf(sum.agi)), ok: !filedAgi || within(sum.agi, filedAgi) }
+  const tax = { filed: filedTax, computed: Math.round(nf(sum.totalTax)), ok: !filedTax || within(sum.totalTax, filedTax) }
+  const hints = []
+  if (!agi.ok) {
+    const dir = agi.computed > agi.filed ? 'higher' : 'lower'
+    hints.push(`Income comes out ${dir} than the return: check the wages line, whether a business or K-1 loss was read as income (a loss is printed in parentheses), and the rental rent, expenses and depreciation.`)
+  }
+  if (agi.ok && !tax.ok) {
+    const dir = tax.computed > tax.filed ? 'higher' : 'lower'
+    hints.push(`Income matches but the tax comes out ${dir}: check the filing status first, then children under 17, retirement and HSA deductions, and the business income deduction.`)
+  }
+  return Object.freeze({ checked: true, ok: agi.ok && tax.ok, agi, tax, hints })
+}
+
 // ── Memo ────────────────────────────────────────────────────────────────────
 
 const SECTIONS = Object.freeze([
@@ -676,5 +726,6 @@ export function buildPriorYearMemo(fieldsIn, { entityReturns = [] } = {}) {
   const totalImpact = all.reduce((t, x) => t + ((hasSolo && x.code === 'SEP-IRA') ? 0 : nf(x.impact)), 0)
 
   const missingReturns = [...(hasScorp && !S ? ['1120s'] : []), ...(hasPship && !P ? ['1065'] : [])]
-  return Object.freeze({ taxYear, asFiled, scenarios, sections, questions, totalImpact, fields: f, entityReturns: Object.freeze((entityReturns || []).map(r => r.kind)), missingReturns: Object.freeze(missingReturns) })
+  const reconciliation = reconcileReview(fieldsIn, entityReturns)
+  return Object.freeze({ taxYear, asFiled, scenarios, sections, questions, totalImpact, fields: f, entityReturns: Object.freeze((entityReturns || []).map(r => r.kind)), missingReturns: Object.freeze(missingReturns), reconciliation })
 }
