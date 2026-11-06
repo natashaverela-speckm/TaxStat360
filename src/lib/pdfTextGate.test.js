@@ -7,6 +7,7 @@ import {
   GATE_MESSAGES,
   isPdfFile,
   gateTax1040PdfUpload,
+  prepareTax1040TextForUpload,
   extractPdfTextLayer,
 } from './pdfTextGate.js'
 
@@ -117,4 +118,38 @@ describe('pdfTextGate (Phase 2)', () => {
     expect(gatedImage.ok).toBe(false)
     if (!gatedImage.ok) expect(gatedImage.code).toBe(GATE_CODES.IMAGE_ONLY_PDF)
   }, 20_000)
+
+  // PHASE 2 (Prior-Year Review): the masking path. Every real 1040 carries an SSN,
+  // so the review masks it on the device and sends only the masked text.
+  describe('prepareTax1040TextForUpload (review path)', () => {
+    it('masks SSNs in the browser and returns clean text with a count', async () => {
+      const body = `Social security number: 219-09-9999\nSpouse 219099998\nAGI 142000 wages 180000`
+      const res = await prepareTax1040TextForUpload(pdfFile('fixture-tax-1040-text-with-ssn.pdf'), { extractText: async () => body })
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.redactedCount).toBe(2)
+        expect(res.text).not.toMatch(/219-09-9999|219099998/)
+        expect(res.text).toContain('XXX-XX-XXXX')
+        expect(res.text).toContain('142000')
+      }
+    })
+
+    it('still refuses image-only and non-PDF files', async () => {
+      const img = await prepareTax1040TextForUpload(pdfFile('fixture-tax-1040-image-only.pdf'), { extractText: async () => '   ' })
+      expect(img.ok).toBe(false)
+      if (!img.ok) expect(img.code).toBe(GATE_CODES.IMAGE_ONLY_PDF)
+      const txt = await prepareTax1040TextForUpload(new File(['hi'], 'notes.txt', { type: 'text/plain' }))
+      expect(txt.ok).toBe(false)
+      if (!txt.ok) expect(txt.code).toBe(GATE_CODES.UNSUPPORTED_FILE_TYPE)
+    })
+
+    it('masks the SSN in the real ssn fixture via pdf.js', async () => {
+      const res = await prepareTax1040TextForUpload(pdfFile('fixture-tax-1040-text-with-ssn.pdf'))
+      expect(res.ok).toBe(true)
+      if (res.ok) {
+        expect(res.redactedCount).toBeGreaterThan(0)
+        expect(res.text).not.toMatch(/\b\d{3}-\d{2}-\d{4}\b/)
+      }
+    })
+  })
 })

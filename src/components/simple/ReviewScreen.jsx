@@ -1,7 +1,7 @@
 // src/components/simple/ReviewScreen.jsx — "Review last year's return"
 //
 // PHASE 2 (Prior-Year Review). Four states on one route:
-//   upload  → the existing PDF gate (text-only, no SSNs) then the review extract
+//   upload  → read + SSN-mask in the browser, send masked text only, then the review extract
 //   confirm → every extracted figure, grouped, editable, low-confidence flagged;
 //             nothing is computed until the user confirms (HITL, same contract as
 //             the Carryforward Wizard)
@@ -16,8 +16,8 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SimpleShell from './SimpleShell.jsx'
 import MoneyInput from '../MoneyInput.jsx'
-import { gateTax1040PdfUpload } from '../../lib/pdfTextGate.js'
-import { extractTax1040Review } from '../../lib/carryforwardExtractClient.js'
+import { prepareTax1040TextForUpload } from '../../lib/pdfTextGate.js'
+import { extractTax1040ReviewText } from '../../lib/carryforwardExtractClient.js'
 import {
   TAX_1040_REVIEW_FIELDS, normalizeReviewFields, buildPriorYearMemo, buildReviewEntities,
 } from '../../lib/priorYearReview.js'
@@ -66,9 +66,11 @@ function UploadStep({ onExtracted }) {
     if (!file) return
     setBusy(true); setNotice(null)
     try {
-      const gate = await gateTax1040PdfUpload(file)
+      // The PDF is read here, in the browser. SSNs are masked on the device and only
+      // the masked text layer is sent; the file itself never leaves this computer.
+      const gate = await prepareTax1040TextForUpload(file)
       if (!gate.ok) { setNotice({ kind: 'error', text: gate.message }); return }
-      const res = await extractTax1040Review(file)
+      const res = await extractTax1040ReviewText(gate.text)
       if (!res.ok) { setNotice({ kind: 'error', text: res.error }); return }
       onExtracted(res.result)
     } finally {
@@ -85,7 +87,7 @@ function UploadStep({ onExtracted }) {
       <div style={{ background: '#fff', border: '1px dashed #CBD5E1', borderRadius: 12, padding: 18, marginBottom: 14 }}>
         <input ref={inputRef} id="review-file" type="file" accept="application/pdf,.pdf" disabled={busy} onChange={e => handle(e.target.files)} style={{ fontSize: 14 }} />
         <div style={{ fontSize: 12, color: SL, marginTop: 10, lineHeight: 1.5 }}>
-          Text PDFs only (the one your tax software produced, not a phone photo). Returns with a visible Social Security number are refused before upload; remove or mask it first. The file is deleted after reading; only the figures are kept.
+          Text PDFs only (the one your tax software produced, not a phone photo). The PDF is read right here in your browser and never uploaded: Social Security numbers are masked on your device, and only the masked text is sent to pull the figures. Nothing from the return is stored.
         </div>
         {busy && <div style={{ marginTop: 10, fontSize: 13, color: B, fontWeight: 600 }}>Reading the return…</div>}
         {notice && <div role="alert" style={{ marginTop: 10, fontSize: 13, color: notice.kind === 'error' ? R : SUCCESS_TEXT }}>{notice.text}</div>}

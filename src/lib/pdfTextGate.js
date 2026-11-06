@@ -14,6 +14,8 @@ import {
   classifyTextLayer,
   countAlphanumeric,
   hasSsnLike,
+  redactSsnInText,
+  assertNoSsnRemaining,
 } from './ssnRedact.js'
 
 export const GATE_CODES = Object.freeze({
@@ -161,4 +163,43 @@ export async function gateTax1040PdfUpload(file, deps = {}) {
     text,
     alnum: countAlphanumeric(text),
   }
+}
+
+/**
+ * PHASE 2 (Prior-Year Review): read the text layer and mask every SSN-like
+ * string *in the browser*, so the PDF itself never leaves the device and the
+ * masked text is all that is ever sent. Every real Form 1040 carries an SSN on
+ * page 1, so a refuse-on-SSN gate would block the whole feature; masking here
+ * is both the usable path and the stronger one. Still refuses non-PDFs,
+ * image-only scans, and the rare case where an SSN survives masking.
+ *
+ * @param {File} file
+ * @param {{ extractText?: (data: ArrayBuffer) => Promise<string>, getDocument?: typeof getDocument }} [deps]
+ * @returns {Promise<{ ok: true, text: string, alnum: number, redactedCount: number }
+ *   | { ok: false, code: string, message: string }>}
+ */
+export async function prepareTax1040TextForUpload(file, deps = {}) {
+  if (!isPdfFile(file)) {
+    return { ok: false, code: GATE_CODES.UNSUPPORTED_FILE_TYPE, message: GATE_MESSAGES[GATE_CODES.UNSUPPORTED_FILE_TYPE] }
+  }
+  let text = ''
+  try {
+    const buffer = await file.arrayBuffer()
+    text = typeof deps.extractText === 'function'
+      ? await deps.extractText(buffer)
+      : await extractPdfTextLayer(buffer, { getDocument: deps.getDocument })
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[pdfTextGate] PDF_UNREADABLE', err?.name || 'Error', err?.message || err)
+    }
+    return { ok: false, code: GATE_CODES.PDF_UNREADABLE, message: GATE_MESSAGES[GATE_CODES.PDF_UNREADABLE] }
+  }
+  if (classifyTextLayer(text) === 'image-only') {
+    return { ok: false, code: GATE_CODES.IMAGE_ONLY_PDF, message: GATE_MESSAGES[GATE_CODES.IMAGE_ONLY_PDF] }
+  }
+  const masked = redactSsnInText(text)
+  if (!assertNoSsnRemaining(masked.text)) {
+    return { ok: false, code: GATE_CODES.SSN_DETECTED, message: GATE_MESSAGES[GATE_CODES.SSN_DETECTED] }
+  }
+  return { ok: true, text: masked.text, alnum: countAlphanumeric(masked.text), redactedCount: masked.redactedCount }
 }
