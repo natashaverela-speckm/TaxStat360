@@ -126,6 +126,12 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(screen.getByText('Which one describes your situation?')).toBeInTheDocument()
   })
 
+  it('Start offers the saved-records list without calling it a dashboard', () => {
+    mountAt('/start')
+    expect(screen.getByText('Open a saved record →')).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/Dashboard/)
+  })
+
   it('Advanced is one click from every screen', () => {
     mountAt('/start')
     fireEvent.click(screen.getByText('Advanced'))

@@ -282,7 +282,7 @@ export default function Upgrade() {
         <div style={{width:64,height:64,background:'#DCFCE7',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',fontSize:28}}>✓</div>
         <h2 style={{fontSize:24,fontWeight:800,color:N,marginBottom:8}}>You're upgraded!</h2>
         <p style={{color:SL,fontSize:15,marginBottom:24}}>Your plan has been updated to <strong>{PLANS[selectedPlan]?.label}</strong>. All features are now active.</p>
-        <button onClick={()=>nav('/dashboard')} style={{padding:'12px 32px',background:B,color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to Dashboard →</button>
+        <button onClick={()=>nav('/dashboard')} style={{padding:'12px 32px',background:B,color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:15,cursor:'pointer'}}>Go to the app →</button>
       </div>
     </div>
   )

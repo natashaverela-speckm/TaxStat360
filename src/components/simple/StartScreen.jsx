@@ -51,6 +51,10 @@ export default function StartScreen() {
         More than one of these, or something else?{' '}
         <button onClick={() => nav('/calculate-tax')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>Use the full form →</button>
       </div>
+      <div style={{ marginTop: 8, fontSize: 13, color: SL }}>
+        Saved something before?{' '}
+        <button onClick={() => nav('/records')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>Open a saved record →</button>
+      </div>
     </SimpleShell>
   )
 }
