@@ -109,8 +109,8 @@ export default function ResultScreen() {
       <section aria-label="Make it more accurate" style={{ marginTop: 22 }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, color: N, margin: '0 0 8px' }}>Make it more accurate</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
-          <button style={linkBtn} onClick={() => nav('/personal-estimate')}>Add retirement or HSA contributions →</button>
-          <button style={linkBtn} onClick={() => nav('/personal-estimate')}>Add estimated payments I've made →</button>
+          <button style={linkBtn} onClick={() => nav('/personal-estimate?section=adjustments')}>Add retirement or HSA contributions →</button>
+          <button style={linkBtn} onClick={() => nav('/personal-estimate?section=payments')}>Add estimated payments I've made →</button>
           <button style={linkBtn} onClick={() => nav('/calculate-tax')}>Add another business or property →</button>
           <button style={linkBtn} onClick={() => nav('/carryforward-wizard')}>Add prior-year carryforwards →</button>
         </div>

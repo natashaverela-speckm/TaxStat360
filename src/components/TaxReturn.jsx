@@ -7,6 +7,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react'
 import FederalDisclosureBanner from './FederalDisclosureBanner.jsx'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
 import { calcTaxReturn, getStdDed, SALT_CAPS, getTable, getSaltPhaseDownParams, QBI_THRESHOLDS, QBI_PHASE_IN_RANGE } from '../lib/taxCalc.js'
 import {
   readPersonalContext, writePersonalContext,
@@ -102,10 +103,34 @@ function IncomeField({ id, label, value, onChange, placeholder, tip, onClick, st
   )
 }
 
-function CollapsibleSection({ title, subtitle, badge, children, defaultOpen = false, accent, style: outerStyle }) {
-  const [open, setOpen] = useState(defaultOpen)
+// PHASE 2 (Advanced, Nov 2026): every section carries an `id`. With the simple flow
+// on, sections get plain names (ADVANCED_TITLES), and the result screen's "Make it
+// more accurate" links open ONE of them via ?section=<id> — on such a deep link the
+// rest start collapsed so the requested section is the focus. Opened any other way
+// the page keeps its usual defaults.
+const ADVANCED_TITLES = {
+  w2:          'Wages from a job',
+  payments:    'Dependents and payments already made',
+  basis:       'S-Corp basis (loss years only)',
+  investments: 'Investment income',
+  adjustments: 'Retirement, HSA and health insurance',
+  penalty:     'Avoiding the underpayment penalty',
+}
+function sectionFromUrl() {
+  try { return new URLSearchParams(window.location.search).get('section') || '' } catch { return '' }
+}
+
+function CollapsibleSection({ id, title, subtitle, badge, children, defaultOpen = false, accent, style: outerStyle }) {
+  const deepLinked = sectionFromUrl() !== ''
+  const requested = !!id && sectionFromUrl() === id
+  const [open, setOpen] = useState(requested || (SIMPLE_FLOW_ENABLED && deepLinked ? false : defaultOpen))
+  const ref = useRef(null)
+  useEffect(() => {
+    if (requested && ref.current && typeof ref.current.scrollIntoView === 'function') ref.current.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [requested])
+  const shownTitle = (SIMPLE_FLOW_ENABLED && id && ADVANCED_TITLES[id]) || title
   return (
-    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginBottom: 12, ...outerStyle }}>
+    <div ref={ref} id={id ? `section-${id}` : undefined} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginBottom: 12, ...outerStyle }}>
       {/* AUDIT FIX (fresh-eyes re-audit, Aug 2026): the toggle was a plain onClick div
           with no role/tabIndex/keyboard handling, so keyboard-only and screen-reader
           users could not open or close any section. */}
@@ -121,7 +146,7 @@ function CollapsibleSection({ title, subtitle, badge, children, defaultOpen = fa
           {/* F5 FIX (UX audit): plain-language title leads; form/code reference is
               demoted to a small subtitle so the section is scannable by non-experts. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: N }}>{title}</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: N }}>{shownTitle}</span>
             {subtitle && <span style={{ fontSize: 11, color: SL, fontWeight: 500 }}>{subtitle}</span>}
           </div>
           {badge && <span style={{ fontSize: 11, fontWeight: 700, background: accent ? accent + '33' : '#EFF6FF', color: accent || B, borderRadius: 10, padding: '2px 9px', border: '1px solid ' + (accent || B) + '44' }}>{badge}</span>}
@@ -1018,7 +1043,10 @@ export default function TaxReturn() {
 
         {/* ── LEFT: Input form ────────────────────────────────────────────── */}
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>Personal Tax Return</h1>
+          {SIMPLE_FLOW_ENABLED && (
+            <button onClick={() => navigate('/result')} style={{ background: 'none', border: 'none', color: B, fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 10 }}>← Back to your result</button>
+          )}
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: N, margin: '0 0 6px' }}>{SIMPLE_FLOW_ENABLED ? 'Advanced: your personal details' : 'Personal Tax Return'}</h1>
           <p style={{ color: SL, fontSize: 13, margin: '0 0 20px' }}>
             Income from your Step 1 entities flows automatically. Add personal income, deductions, and withholding to see your complete estimated federal tax liability.
           </p>
@@ -1247,6 +1275,7 @@ export default function TaxReturn() {
 
           {/* W-2 Income & Withholding */}
           <CollapsibleSection
+            id="w2"
             title="W-2 Income & Withholding"
             defaultOpen
             // UX-H2 FIX: badge shows TOTAL W-2 (officer salary from Step 1 + other employer
@@ -1508,7 +1537,7 @@ export default function TaxReturn() {
           )}
 
           {/* Dependents + estimated payments */}
-          <CollapsibleSection title="Dependents, Federal Withholding & Estimated Payments" defaultOpen>
+          <CollapsibleSection id="payments" title="Dependents, Federal Withholding & Estimated Payments" defaultOpen>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label style={inputLbl}>
@@ -1553,7 +1582,7 @@ export default function TaxReturn() {
               still read "S-Corp Stock & Debt Basis" — two different names for the same concept.
               Aligned to match Step 1 label and add the Form 7203 citation. */}
           {Array.isArray(entities) && entities.some(e => isSCorpEntity(e.type)) && (
-            <CollapsibleSection title="Stock & Debt Basis (Form 7203)" subtitle="Form 7203 · limits how much loss you can deduct" defaultOpen={false}>
+            <CollapsibleSection id="basis" title="Stock & Debt Basis (Form 7203)" subtitle="Form 7203 · limits how much loss you can deduct" defaultOpen={false}>
               <div style={{ padding: '8px 0' }}>
                 <div style={inpWrap}>
                   <label htmlFor="tr-prior-suspended-loss" style={inputLbl}>
@@ -1571,7 +1600,7 @@ export default function TaxReturn() {
               value so a loaded record never hides material figures behind a collapsed
               header (the audit's "data is hidden from view" concern). Pairs with the
               full-f1040 hydration in Dashboard.loadRecord. */}
-          <CollapsibleSection title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) !== 0 || nf(stGain) !== 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) !== 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
+          <CollapsibleSection id="investments" title="Capital Gains & Investment Income" subtitle="Stocks, interest, dividends · Schedule D / B" defaultOpen={nf(ltGain) !== 0 || nf(stGain) !== 0 || nf(interest) > 0 || nf(dividends) > 0 || nf(qualDividends) > 0 || nf(form4797) !== 0 || nf(unrecap1250) > 0 || nf(collectibles) > 0} badge={nf(ltGain) > 0 || nf(stGain) > 0 || nf(interest) > 0 ? 'Schedule D / B' : undefined} accent="#0891B2">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 <label htmlFor="tr-st-gain" style={inputLbl}>Short-Term Capital Gains (or losses)</label>
@@ -1693,7 +1722,7 @@ export default function TaxReturn() {
           </CollapsibleSection>
 
           {/* Deductions & adjustments */}
-          <CollapsibleSection title="Above-the-Line Deductions & Adjustments (Schedule 1)" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
+          <CollapsibleSection id="adjustments" title="Above-the-Line Deductions & Adjustments (Schedule 1)" subtitle="HSA, SE health & retirement, student-loan interest · Above-the-line (Schedule 1)">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={inpWrap}>
                 {/* EXT-3 (external accuracy audit, Aug 2026 — Finding 3): the earned-income
@@ -1998,7 +2027,7 @@ export default function TaxReturn() {
 
           {/* Safe harbor inputs */}
           <div data-section="safe-harbor">
-          <CollapsibleSection title="Estimated Tax Penalty Protection" subtitle="Prior-year tax & AGI · minimize underpayment penalties" badge="Optional">
+          <CollapsibleSection id="penalty" title="Estimated Tax Penalty Protection" subtitle="Prior-year tax & AGI · minimize underpayment penalties" badge="Optional">
             <p style={{ fontSize: 13, color: SL, margin: '0 0 12px', lineHeight: 1.6 }}>
               Enter prior year figures to calculate your Safe Harbor payment amount — the minimum you must pay to avoid underpayment penalties. At AGI above $150K (single, HOH, or MFJ) or $75K (MFS only), the Safe Harbor threshold is 110% of prior year tax. IRC §6654(d)(1)(C)(i) (the $75K MFS substitution is §6654(d)(1)(C)(ii)). For 2026 (OBBBA / TCJA extended): TCJA extension did not change Safe Harbor rules under §6654, but confirm final Treasury guidance with your CPA before relying on these thresholds for penalty avoidance.
             </p>
