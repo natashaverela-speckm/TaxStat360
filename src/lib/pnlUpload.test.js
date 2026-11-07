@@ -67,4 +67,10 @@ describe('P&L upload', () => {
     expect(Math.round(t.spending)).toBe(267844)
     expect(t.notes[0]).toMatch(/did not add up to its Net Income/)
   })
+
+  it('a hand-corrected line is not re-tied to the report', () => {
+    const t = pnlTotals({ ...QBO_OTHER, otherExpenses: 20000 }, { tie: false })
+    expect(Math.round(t.spending)).toBe(267698)
+    expect(t.notes).toEqual([])
+  })
 })

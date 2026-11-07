@@ -79,6 +79,34 @@ export default function NumbersScreen() {
   // fields below for them to check. Replaces the connect buttons, which handed off
   // to the Tax Tracker.
   const [pnl, setPnl] = useState({ busy: false, msg: null, kind: null })
+  // The report's lines as read, editable: "Something look off? Change any number here."
+  const [pnlRead, setPnlRead] = useState(null)
+  const applyPnl = (p, quiet = false) => {
+    const n = pnlToNumbers(p, tile.key, taxYear, { tie: !quiet })   // a hand correction is not re-tied to the report
+    setV(prev => ({ ...prev, revenue: n.revenue, expenses: n.expenses, ...(has('officerSalary') ? { officerSalary: n.officerSalary } : {}), ...(isRental ? { depreciation: n.depreciation } : {}) }))
+    setTouched(false)
+    if (quiet) return n
+    const parts = [`Read from your P&L${n.period ? ` (${n.period})` : ''}: ${isRental ? 'rent' : 'income'} ${fmt(nf(n.revenue))}, spent ${fmt(nf(n.expenses))}`]
+    if (has('officerSalary') && nf(n.officerSalary) > 0) parts.push(`your pay ${fmt(nf(n.officerSalary))}`)
+    if (isRental && nf(n.depreciation) > 0) parts.push(`depreciation ${fmt(nf(n.depreciation))}`)
+    setPnl({ busy: false, msg: parts.join(', ') + '.' + (n.notes.length ? ' ' + n.notes.join(' ') : ''), kind: 'ok' })
+    return n
+  }
+  const editPnlLine = (key) => (val) => {
+    setPnlRead(prev => {
+      const next = { ...prev, [key]: val === '' ? 0 : nf(val) }
+      applyPnl(next, true)
+      return next
+    })
+  }
+  const PNL_LINES = [
+    { key: 'totalIncome',   label: isRental ? 'Total rent' : 'Total income' },
+    { key: 'otherIncome',   label: 'Other income' },
+    { key: 'totalExpenses', label: 'Total expenses' },
+    { key: 'otherExpenses', label: 'Other expenses' },
+    ...(has('officerSalary') ? [{ key: 'officerCompensation', label: 'Officer / owner salary' }] : []),
+    ...(isRental ? [{ key: 'depreciation', label: 'Depreciation' }] : []),
+  ]
   const onPnlFile = async (file) => {
     if (!file) return
     setPnl({ busy: true, msg: null, kind: null })
@@ -89,13 +117,8 @@ export default function NumbersScreen() {
       if (!res.ok) { setPnl({ busy: false, msg: res.error, kind: 'error' }); return }
       const p = normalizePnl(res.result.fields || {})
       if (!looksLikePnl(p)) { setPnl({ busy: false, msg: 'That PDF does not read as a profit and loss report. Export the P&L (not the balance sheet or a transaction list) and try again, or type the numbers.', kind: 'error' }); return }
-      const n = pnlToNumbers(p, tile.key, taxYear)
-      setV(prev => ({ ...prev, revenue: n.revenue, expenses: n.expenses, ...(has('officerSalary') ? { officerSalary: n.officerSalary } : {}), ...(isRental ? { depreciation: n.depreciation } : {}) }))
-      setTouched(false)
-      const parts = [`Read from your P&L${n.period ? ` (${n.period})` : ''}: ${isRental ? 'rent' : 'income'} ${fmt(nf(n.revenue))}, spent ${fmt(nf(n.expenses))}`]
-      if (has('officerSalary') && nf(n.officerSalary) > 0) parts.push(`your pay ${fmt(nf(n.officerSalary))}`)
-      if (isRental && nf(n.depreciation) > 0) parts.push(`depreciation ${fmt(nf(n.depreciation))}`)
-      setPnl({ busy: false, msg: parts.join(', ') + '.' + (n.notes.length ? ' ' + n.notes.join(' ') : ''), kind: 'ok' })
+      setPnlRead(p)
+      applyPnl(p)
     } catch (e) {
       setPnl({ busy: false, msg: 'Could not read that PDF. Type the numbers instead.', kind: 'error' })
     }
@@ -120,6 +143,20 @@ export default function NumbersScreen() {
                 <strong>Please check these numbers against your actual P&L.</strong> Reports from different software lay out their totals differently, and we only use what the PDF says. If a figure is wrong, fix it in the field below. If the numbers don't match your report and you can't see why, email{' '}
                 <a href="mailto:support@taxstat360.com?subject=P%26L%20upload%20read%20wrong" style={{ color: '#9A3412', fontWeight: 700 }}>support@taxstat360.com</a>{' '}
                 with the PDF attached and we'll sort it out.
+              </div>
+            )}
+            {pnl.kind === 'ok' && pnlRead && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: N, marginBottom: 6 }}>Something look off? Change any number here.</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+                  {PNL_LINES.map(l => (
+                    <div key={l.key}>
+                      <label htmlFor={`sf-pnl-${l.key}`} style={{ display: 'block', fontSize: 12, color: SL, marginBottom: 3 }}>{l.label}</label>
+                      <MoneyInput id={`sf-pnl-${l.key}`} value={nf(pnlRead[l.key]) ? String(nf(pnlRead[l.key])) : ''} onChange={editPnlLine(l.key)} nonNegative placeholder="0" ariaLabel={`P&L ${l.label}`} style={{ ...inputStyle, padding: '8px 10px', fontSize: 14 }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: SL, marginTop: 6 }}>Net income on the report: {fmt(nf(pnlRead.netIncome))}. The fields below update as you change these.</div>
               </div>
             )}
           </div>

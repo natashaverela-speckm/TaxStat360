@@ -27,14 +27,15 @@ export const PNL_FIELD_KEYS = Object.freeze([
  * report has a section we did not read, and the spending figure is set so the
  * totals tie to the report rather than to our reading of it.
  */
-export function pnlTotals(pIn) {
+export function pnlTotals(pIn, { tie = true } = {}) {
   const p = normalizePnl(pIn)
   const income = Math.max(0, nf(p.totalIncome)) + Math.max(0, nf(p.otherIncome))
   let spending = Math.max(0, nf(p.totalExpenses)) + Math.max(0, nf(p.costOfGoodsSold)) + Math.max(0, nf(p.otherExpenses))
   const notes = []
   const net = nf(p.netIncome)
   let tied = true
-  if (net !== 0 || income > 0) {
+  // tie=false when the member has corrected a line by hand: their figures win.
+  if (tie && (net !== 0 || income > 0)) {
     const gap = (income - spending) - net
     if (Math.abs(gap) > Math.max(50, income * 0.01)) {
       tied = false
@@ -75,12 +76,12 @@ export function looksLikePnl(p) {
  *
  * @returns {{ revenue: string, expenses: string, officerSalary: string, depreciation: string, period: string, notes: string[] }}
  */
-export function pnlToNumbers(pIn, tileKey, taxYear = CURRENT_TAX_YEAR) {
+export function pnlToNumbers(pIn, tileKey, taxYear = CURRENT_TAX_YEAR, { tie = true } = {}) {
   const p = normalizePnl(pIn)
   const tile = tileByKey(tileKey) || tileByKey('scorp')
   const isRental = tile.fields.includes('rent')
   const isSCorp = tile.key === 'scorp'
-  const totals = pnlTotals(p)
+  const totals = pnlTotals(p, { tie })
   const notes = [...totals.notes]
   const income = totals.income
   const dep = Math.max(0, nf(p.depreciation))
