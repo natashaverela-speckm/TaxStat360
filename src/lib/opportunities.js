@@ -413,5 +413,15 @@ export function buildOpportunities(rec) {
   // §469(i) / bonus-depreciation / hours cards now lead instead of trailing.
   const _priorityRank = { high: 0, medium: 1, low: 2 }
   opportunities.sort((a, b) => (_priorityRank[a.priority] ?? 3) - (_priorityRank[b.priority] ?? 3))
+  // A card's saving is contribution × marginal rate; it cannot exceed the federal
+  // tax actually owed. In a loss year (total tax $0) every "Save ~$X" would be
+  // fiction, so each card is capped at the engine's total tax and marked when the
+  // cap bound, so the UI can say "no tax to lower this year" instead of a number.
+  if (_sum2.ok) {
+    const cap = Math.max(0, Math.round(nf(_sum2.totalTax)))
+    for (const o of opportunities) {
+      if (o.saving != null && nf(o.saving) > cap) { o.savingUncapped = o.saving; o.saving = cap; o.savingCapped = true }
+    }
+  }
   return Object.freeze({ hasIncome: true, opportunities, marginalRate, year, entitySubtitle })
 }

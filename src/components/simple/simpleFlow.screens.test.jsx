@@ -225,6 +225,9 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     // the headline is the tax on (salary − loss), not on the salary alone
     const headline = within(screen.getByText(/on track to owe about/i).closest('section')).getAllByText(/^\$[\d,]+$|^—$/)[0].textContent
     expect(headline).toBe('$0')
+    // with no tax owed, no card may promise a saving
+    expect(screen.queryByText(/^Save ~\$/)).toBeNull()
+    expect(screen.getAllByText(/No tax to lower this year/).length).toBeGreaterThan(0)
   })
 
   it('a server rejection is never shown as "Saved ✓": the reason appears, the browser copy is kept', async () => {
