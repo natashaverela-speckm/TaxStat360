@@ -16,7 +16,7 @@ import { CURRENT_TAX_YEAR } from './constants.js'
 import { summarizeRecord } from '../utils/calcSelector.js'
 import { buildOpportunities } from './opportunities.js'
 import { nf } from '../utils/money.js'
-import { isCCorpEntity, isRealEstateEntity, isSCorpEntity, getEntityK1Share } from '../utils/entityPredicates.js'
+import { isCCorpEntity, isRealEstateEntity, isSCorpEntity, isBasisLimitableEntityType, getEntityK1Share } from '../utils/entityPredicates.js'
 import {
   readPersonalContext, writePersonalContext,
   readStep1State, writeStep1State,
@@ -118,6 +118,11 @@ export function buildEntityFromNumbers({ tile, revenue = 0, expenses = 0, office
     box17V_wages: '', box17V_ubia: '', box11_12: '', box12_13: '', qbiLossCarryforward: '',
     box17V_sstb: false,
     stockBasis: '', debtBasis: '', distributions: '',
+    // The simple flow never asks for Form 7203 / §704(d) basis. An owner who runs
+    // the business funds it, so a loss year is assumed covered by basis and is
+    // deducted; the Advanced page (basis entered) or the prior-year review
+    // (basis set from the return) replaces the assumption with a figure.
+    basisCoversLoss: isBasisLimitableEntityType(t.entityType),
     // "I own rental property" is a landlord who approves tenants and sets terms,
     // which is all §469(i) active participation asks; the $25,000 allowance (and
     // its AGI phase-out) is the normal case for a small landlord, so the simple

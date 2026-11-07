@@ -12,6 +12,7 @@ import MoneyInput from '../MoneyInput.jsx'
 import { selectSimpleResult, sortCardsBySaving, resetWorkingFigures, RESULT_FIELDS, writeResultField, saveSimpleRecord } from '../../lib/simpleFlow.js'
 import { ADVANCED_HIDDEN } from '../../lib/pnlUpload.js'
 import { readPersonalContext } from '../../utils/sessionState.js'
+import { getEntityK1Share } from '../../utils/entityPredicates.js'
 import { fmt, pct, effectiveRate, nf } from '../../utils/money.js'
 import { NAVY as N, SLATE as SL, BLUE as B, RED as R, SUCCESS_TEXT } from '../../lib/theme.js'
 
@@ -124,6 +125,9 @@ export default function ResultScreen() {
   const rate = ok && summary.agi > 0 ? effectiveRate(summary.totalTax, summary.agi) : null
   const nextAmt = ok ? (summary.quarterlyRecommended || 0) : 0
   const sorted = sortCardsBySaving(cards.opportunities)
+  // A loss year on a simple-flow business is deducted on the assumption the owner
+  // funded it (basisCoversLoss, set by buildEntityFromNumbers); say so in one line.
+  const assumedLoss = entities.reduce((s, e) => s + (e && e.basisCoversLoss === true ? Math.min(0, getEntityK1Share(e)) : 0), 0)
 
   return (
     <SimpleShell step="result" maxWidth={720}>
@@ -134,6 +138,11 @@ export default function ResultScreen() {
           in federal income tax{rate !== null ? ` · ${pct(rate)} of your income` : ''}. Federal only; state tax is not included.
         </div>
         {!ok && <div role="alert" style={{ marginTop: 10, fontSize: 13, background: 'rgba(255,255,255,0.1)', padding: '8px 10px', borderRadius: 8 }}>We couldn't compute this one: {summary && summary.error}. Try the full form under Advanced.</div>}
+        {ok && assumedLoss < 0 && (
+          <div style={{ marginTop: 10, fontSize: 13, background: 'rgba(255,255,255,0.1)', padding: '8px 10px', borderRadius: 8 }}>
+            Your business lost {fmt(-assumedLoss)} this year. That loss lowers the tax on your other income — we assume you put in the money that covered it. Your tax pro calls this "basis".
+          </div>
+        )}
         {ok && nextAmt > 0 && (
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <div>

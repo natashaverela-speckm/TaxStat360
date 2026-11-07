@@ -1426,7 +1426,13 @@ function calcTaxReturn(input) {
     // conservatively assumed to be $0 and the full loss is suspended until the
     // shareholder enters their Form 7203 basis. Without the flag (engine default), a
     // loss with no basis input still passes through in full, preserving prior behavior.
-    const applyLimit = isLimitable && k1Gross < 0 && (hasBasisInput || assumeZeroBasisOnLoss)
+    // Simple-flow attestation (Nov 2026): `basisCoversLoss` on the entity says the
+    // owner funds the business, so basis is assumed sufficient for this year's loss
+    // and the conservative $0 default does not apply. An entered basis figure still
+    // wins (hasBasisInput), because then the §1366(d)/§704(d) limit is a fact, not
+    // an assumption. Surfaced as basisAssumedSufficient so the UI can say so.
+    const basisAssumedSufficient = isLimitable && k1Gross < 0 && !hasBasisInput && e.basisCoversLoss === true
+    const applyLimit = isLimitable && k1Gross < 0 && (hasBasisInput || (assumeZeroBasisOnLoss && !basisAssumedSufficient))
     if (!applyLimit) {
       // Income entity (or a loss with no basis figure and no conservative flag): no
       // §1366(d) limitation. Still surface basis for the §1368 distribution computation
@@ -1435,6 +1441,7 @@ function calcTaxReturn(input) {
         name: e.name || e.id || 'Entity', type: e.type,
         k1Gross, k1Allowed: k1Gross, suspended: 0,
         epDividend, distFromAAA, accumulatedEP: ep,   // F-9: §1368(c) tiers
+        basisAssumedSufficient,
         ...(hasBasisInput ? {
           stockBasis: sb, debtBasis: db, totalBasis: stockAfterDist + db,
           capitalContributions: contrib, basisIncomeItems: basisIncome,
@@ -1465,6 +1472,7 @@ function calcTaxReturn(input) {
       stockBasisForDist, stockBasisAfterDist: stockAfterDist,
       distributions: dist, distExcessGain,
       basisAssumedZero,
+      basisAssumedSufficient: false,
     })
     return suspended > 0 ? { ...e, k1: k1Allowed } : e
   })

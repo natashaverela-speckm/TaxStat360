@@ -213,6 +213,20 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(readUserRecords().some(r => r.name === 'My S-Corp 2026' && r.totalTax > 0)).toBe(true)
   })
 
+  it('a loss year on the S-Corp tile is deducted and the result says the basis was assumed', async () => {
+    mountAt('/numbers?tile=scorp')
+    fireEvent.change(screen.getByLabelText(/What the business took in/), { target: { value: '226484' } })
+    fireEvent.change(screen.getByLabelText(/What the business spent/), { target: { value: '267844' } })
+    fireEvent.change(screen.getByLabelText(/paid yourself on payroll/), { target: { value: '48000' } })
+    fireEvent.click(screen.getByText(/See my result/))
+    await screen.findByText(/on track to owe about/i)
+    expect(screen.getByText(/Your business lost \$9[\d,]+ this year/)).toBeInTheDocument()
+    expect(screen.getByText(/we assume you put in the money that covered it/)).toBeInTheDocument()
+    // the headline is the tax on (salary − loss), not on the salary alone
+    const headline = within(screen.getByText(/on track to owe about/i).closest('section')).getAllByText(/^\$[\d,]+$|^—$/)[0].textContent
+    expect(headline).toBe('$0')
+  })
+
   it('a server rejection is never shown as "Saved ✓": the reason appears, the browser copy is kept', async () => {
     const { upsertRecordOnServer } = await import('../../utils/serverApi.js')
     const err = Object.assign(new Error('Session/account mismatch: this browser is signed in as a different account than this page expects.'), { status: 409 })

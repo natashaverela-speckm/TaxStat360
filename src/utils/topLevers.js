@@ -81,7 +81,7 @@ export function topLeversForRecord(rec, max = 2) {
     levers.push({
       id: 'suspended-losses',
       tone: 'info',
-      text: `${fmt(summary.totalSuspendedLoss)} in losses suspended (§469) — a timing lever for a high-income year`,
+      text: `${fmt(summary.totalSuspendedLoss)} in business losses suspended for lack of basis (§1366(d)/§704(d)) — enter your basis to release them`,
     })
   }
 
