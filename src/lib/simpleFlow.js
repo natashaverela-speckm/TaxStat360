@@ -278,7 +278,8 @@ export async function saveSimpleRecord(name) {
     totalTax: summary?.ok ? nf(summary.totalTax) : 0,
     step2Computed: !!(summary && summary.ok),
   }
-  const saved = await syncRecordToServer(record)
+  // strict: "Saved ✓" must mean saved to the account, not only to this browser.
+  const saved = await syncRecordToServer(record, { strict: true })
   writeActiveRecord(saved.id, saved.name || saved.savedAt)
   writeDirtyFlag(false)
   return saved

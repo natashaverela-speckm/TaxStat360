@@ -213,6 +213,25 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(readUserRecords().some(r => r.name === 'My S-Corp 2026' && r.totalTax > 0)).toBe(true)
   })
 
+  it('a server rejection is never shown as "Saved ✓": the reason appears, the browser copy is kept', async () => {
+    const { upsertRecordOnServer } = await import('../../utils/serverApi.js')
+    const err = Object.assign(new Error('Session/account mismatch: this browser is signed in as a different account than this page expects.'), { status: 409 })
+    upsertRecordOnServer.mockRejectedValueOnce(err)
+    mountAt('/numbers?tile=scorp')
+    fireEvent.change(screen.getByLabelText(/What the business took in/), { target: { value: '200000' } })
+    fireEvent.change(screen.getByLabelText(/What the business spent/), { target: { value: '80000' } })
+    fireEvent.change(screen.getByLabelText(/paid yourself on payroll/), { target: { value: '60000' } })
+    fireEvent.click(screen.getByText(/See my result/))
+    await screen.findByText(/on track to owe about/i)
+    fireEvent.click(screen.getByText('Save this record'))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/Not saved to your account/)
+    expect(alert.textContent).toMatch(/mismatch/)
+    expect(alert.textContent).toMatch(/409/)
+    expect(screen.queryByText('Saved ✓')).toBeNull()
+    expect(readUserRecords().length).toBe(1)   // local copy still written
+  })
+
   it('new month: "Update these numbers" reopens the tile prefilled, keeps withholding, and Save updates the same record', async () => {
     mountAt('/start')
     fireEvent.click(screen.getByText('I run an S-Corp'))

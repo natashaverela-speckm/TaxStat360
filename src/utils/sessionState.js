@@ -817,19 +817,25 @@ export async function loadUserRecordsFromServer() {
 }
 
 /** Upsert one record on the server and in the per-user localStorage cache. */
-export async function syncRecordToServer(record) {
+export async function syncRecordToServer(record, { strict = false } = {}) {
   if (!record || record.id == null) return record
   const email = _recordsEmail()
   let merged = record
+  let serverError = null
   if (email !== 'default') {
     try {
       const saved = await upsertRecordOnServer(record)
       merged = { ...record, ...saved }
     } catch (e) {
       console.warn('records server upsert failed, cached locally', e)
+      serverError = e
     }
   }
   _upsertRecordInCache(merged)
+  // strict: the caller promised the member the record is in their account, so a
+  // server rejection must surface (the local copy is still written above). The
+  // default keeps the older callers' behaviour: cache locally, never throw.
+  if (strict && serverError) throw serverError
   return merged
 }
 
