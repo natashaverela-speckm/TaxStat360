@@ -140,3 +140,41 @@ describe('sortCardsBySaving', () => {
     expect(buildEntityFromNumbers({ tile: 'scorp', revenue: 1 }).isActiveParticipant).toBe(false)
   })
 })
+
+// ── Basis default (Nov 2026): a loss year in the simple flow is deducted ──────
+import { summarizeRecord as _sumRec } from '../utils/calcSelector.js'
+import { calcTaxReturn as _calc } from './taxCalc.js'
+import { buildRecordEngineInput as _engineInput } from '../utils/calcSelector.js'
+describe('simple flow assumes the owner has basis for a loss year', () => {
+  const loss = { tile: 'scorp', revenue: '226484', expenses: '267844', officerSalary: '48000', filingStatus: 'single', w2Other: '0', taxYear: 2026 }
+  it('S-Corp and partnership tiles carry basisCoversLoss; Schedule C and rental do not', () => {
+    expect(buildEntityFromNumbers({ tile: 'scorp' }).basisCoversLoss).toBe(true)
+    expect(buildEntityFromNumbers({ tile: 'partnership' }).basisCoversLoss).toBe(true)
+    expect(buildEntityFromNumbers({ tile: 'soleprop' }).basisCoversLoss).toBe(false)
+    expect(buildEntityFromNumbers({ tile: 'rental' }).basisCoversLoss).toBe(false)
+  })
+  it('the loss is deducted (nothing suspended) and the engine says the basis was assumed', () => {
+    const entity = buildEntityFromNumbers(loss)
+    const rec = { taxYear: 2026, f1040: { filingStatus: 'single', taxYear: 2026 }, entities: [entity] }
+    const s = _sumRec(rec)
+    expect(s.ok).toBe(true)
+    expect(s.totalSuspendedLoss).toBe(0)
+    expect(s.agi).toBeLessThan(48000)          // the K-1 loss offsets the salary
+    const r = _calc(_engineInput(rec))
+    expect(r.entityBasisResults[0].basisAssumedSufficient).toBe(true)
+    expect(r.entityBasisResults[0].suspended).toBe(0)
+  })
+  it('an entered basis figure still wins over the assumption', () => {
+    const entity = { ...buildEntityFromNumbers(loss), stockBasis: '10000' }
+    const rec = { taxYear: 2026, f1040: { filingStatus: 'single', taxYear: 2026 }, entities: [entity] }
+    const r = _calc(_engineInput(rec))
+    expect(r.entityBasisResults[0].basisAssumedSufficient).toBe(false)
+    expect(r.entityBasisResults[0].suspended).toBeGreaterThan(0)
+    expect(r.entityBasisResults[0].k1Allowed).toBe(-10000)
+  })
+  it('without the attestation the conservative $0-basis default still suspends the loss', () => {
+    const entity = { ...buildEntityFromNumbers(loss), basisCoversLoss: false }
+    const rec = { taxYear: 2026, f1040: { filingStatus: 'single', taxYear: 2026 }, entities: [entity] }
+    expect(_sumRec(rec).totalSuspendedLoss).toBeGreaterThan(0)
+  })
+})
