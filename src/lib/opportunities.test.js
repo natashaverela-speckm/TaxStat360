@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildOpportunities, getTotalW2, recEntityType, recDepreciation } from './opportunities.js'
 import { summarizeRecord } from '../utils/calcSelector.js'
+import { nf } from '../utils/money.js'
 
 const scorpRecord = {
   taxYear: 2026,
@@ -97,5 +98,26 @@ describe('record helpers moved with the builder', () => {
   it('recDepreciation counts §179 (box11_12) alongside MACRS/bonus', () => {
     expect(recDepreciation(rentalRecord)).toBe(30000)
     expect(recDepreciation({ entities: [{ pnl: { depreciation: 0 }, box11_12: 5000 }] })).toBe(5000)
+  })
+})
+
+// ── Savings are capped at the tax actually owed (Nov 2026) ──────────────────
+describe('card savings never exceed total federal tax', () => {
+  it('a loss year with $0 tax zeroes every "Save ~" and marks the cap', async () => {
+    const { buildEntityFromNumbers } = await import('./simpleFlow.js')
+    const entity = buildEntityFromNumbers({ tile: 'scorp', revenue: '226484', expenses: '267844', officerSalary: '48000', taxYear: 2026 })
+    const rec = { taxYear: 2026, f1040: { filingStatus: 'single', taxYear: 2026 }, entities: [entity], biz: { entityType: 'S Corporation', revenue: 226484, year: 2026 } }
+    const { opportunities } = buildOpportunities(rec)
+    const capped = opportunities.filter(o => o.savingCapped)
+    expect(capped.length).toBeGreaterThan(0)
+    for (const o of opportunities) expect(nf(o.saving)).toBe(0)
+    expect(capped[0].savingUncapped).toBeGreaterThan(0)
+  })
+  it('a profitable year leaves savings below the tax untouched', () => {
+    const rec = { taxYear: 2026, f1040: { filingStatus: 'single', taxYear: 2026 }, biz: { entityType: 'S Corporation', revenue: 400000, year: 2026 },
+      entities: [{ id: 1, type: 'S Corporation', name: 'X', own: '100', officerW2: 120000, pnl: { grossRevenue: 400000, totalExpenses: 150000, officerSalary: 120000, netProfit: 250000 } }] }
+    const { opportunities } = buildOpportunities(rec)
+    expect(opportunities.some(o => nf(o.saving) > 0)).toBe(true)
+    expect(opportunities.every(o => !o.savingCapped)).toBe(true)
   })
 })

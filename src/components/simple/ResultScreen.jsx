@@ -39,6 +39,8 @@ function Card({ o }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         {o.saving
           ? <span style={{ fontSize: 18, fontWeight: 800, color: SUCCESS_TEXT }}>Save ~{fmt(o.saving)}</span>
+          : o.savingCapped
+            ? <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>No tax to lower this year</span>
           : o.alreadySaving
             ? <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Already saving ~{fmt(o.alreadySaving)}</span>
             : <span style={{ fontSize: 12, fontWeight: 700, color: SL, textTransform: 'uppercase', letterSpacing: 0.5 }}>Worth a look</span>}
