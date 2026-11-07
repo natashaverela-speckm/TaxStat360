@@ -12,9 +12,9 @@ import SimpleShell from './SimpleShell.jsx'
 import MoneyInput from '../MoneyInput.jsx'
 import {
   tileByKey, FIELD_COPY, FILING_STATUS_OPTIONS,
-  previewFromNumbers, writeSimpleFlowState,
+  previewFromNumbers, writeSimpleFlowState, readNumbersForTile,
 } from '../../lib/simpleFlow.js'
-import { readTaxYear } from '../../utils/sessionState.js'
+import { readTaxYear, readActiveRecordName } from '../../utils/sessionState.js'
 import { fmt, nf } from '../../utils/money.js'
 import { NAVY as N, SLATE as SL, BLUE as B, RED as R, SUCCESS_TEXT } from '../../lib/theme.js'
 import { prepareTax1040TextForUpload } from '../../lib/pdfTextGate.js'
@@ -39,10 +39,15 @@ export default function NumbersScreen() {
   const tile = tileByKey(params.get('tile')) || tileByKey('scorp')
   const taxYear = readTaxYear()
 
-  const [v, setV] = useState({
+  // ?update=1: the member is updating an open record (new P&L, same business):
+  // last time's figures are the starting point and Save will update that record.
+  const updating = params.get('update') === '1'
+  const [v, setV] = useState(() => (updating && readNumbersForTile(tile.key)) || {
     revenue: '', expenses: '', officerSalary: '', depreciation: '', ownership: '100',
     filingStatus: 'single', w2Other: '', w2Withheld: '',
   })
+  const recordName = updating ? readActiveRecordName() : ''
+
   const [touched, setTouched] = useState(false)
   const set = (k) => (val) => setV(prev => ({ ...prev, [k]: val }))
   const has = (f) => tile.fields.includes(f)
@@ -70,7 +75,7 @@ export default function NumbersScreen() {
   const continueToResult = () => {
     setTouched(true)
     if (!canContinue) return
-    writeSimpleFlowState({ tile, ...v, taxYear })
+    writeSimpleFlowState({ tile, ...v, taxYear }, { keepRecord: updating })
     nav('/result')
   }
 
@@ -128,7 +133,7 @@ export default function NumbersScreen() {
     <SimpleShell step="numbers" maxWidth={920}>
       <button onClick={() => nav('/start')} style={{ background: 'none', border: 'none', color: SL, fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 10 }}>← Back</button>
       <h1 style={{ fontSize: 24, fontWeight: 800, color: N, margin: '0 0 4px' }}>{tile.icon} {tile.label}</h1>
-      <p style={{ fontSize: 14, color: SL, margin: '0 0 18px' }}>Estimates are fine. You can refine every number later.</p>
+      <p style={{ fontSize: 14, color: SL, margin: '0 0 18px' }}>{updating ? `Updating ${recordName || 'your saved record'}: drop the latest P&L or change the numbers, then save again.` : 'Estimates are fine. You can refine every number later.'}</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(240px, 300px)', gap: 20, alignItems: 'start' }} className="simple-numbers-grid">
         <div>

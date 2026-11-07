@@ -74,6 +74,7 @@ import { ownPct, normalizeEntityType, isCCorpEntity, isSCorpEntity, getEntityK1S
 import { resolveW2OwnForSE } from '../utils/w2OwnForSE.js'   // FIFTH READ F-3
 import { isPro } from './LockedFeature'
 import { SIMPLE_FLOW_ENABLED } from '../lib/simpleFlow.js'
+import { ADVANCED_HIDDEN } from '../lib/pnlUpload.js'
 import InfoTip from './InfoTip.jsx'
 
 // Module-1 fix (F1/F2): the Dashboard previously carried its OWN copy of
@@ -559,7 +560,7 @@ export default function Dashboard() {
     const activeName = rec.name || rec.savedAt || 'Saved Record'
     writeActiveRecord(rec.id, activeName)   // F-FUNC-02: canonical loaded-record pointer
     setActiveRecordId(String(rec.id || ''))
-    nav('/calculate-tax')
+    nav(ADVANCED_HIDDEN ? '/result' : '/calculate-tax')   // with the tracker hidden, a saved record opens on the simple result
   }
 
   const handleDeleteClick = (rec, idx) => setDeleteConfirm({ rec, idx })
@@ -582,7 +583,7 @@ export default function Dashboard() {
     clearStep1State()
     setSavedRecordId(null)
     setLoadedRecord(null)
-    nav('/calculate-tax')
+    nav(ADVANCED_HIDDEN ? '/start' : '/calculate-tax')
   }
 
   // F-FUNC-05: a preset card means "set me up with an entity of this type." Start a

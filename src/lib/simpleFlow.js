@@ -185,7 +185,7 @@ export function previewFromNumbers(input) {
  * state. Replaces the working entity list (one entity) — the simple flow is a
  * fresh calculation, never a merge into a loaded record.
  */
-export function writeSimpleFlowState(input) {
+export function writeSimpleFlowState(input, { keepRecord = false } = {}) {
   const taxYear = parseInt(input.taxYear) || readTaxYear() || CURRENT_TAX_YEAR
   const entity = buildEntityFromNumbers({ ...input, taxYear })
   const entities = [entity]
@@ -196,16 +196,46 @@ export function writeSimpleFlowState(input) {
     k1Total: sumK1FlowThrough(entities),
     isCoopPatron: readStep1State().isCoopPatron,
   })
+  const pc = readPersonalContext()
   writePersonalContext({
-    ...readPersonalContext(),
+    ...pc,
     taxYear,
     filingStatus: input.filingStatus || 'single',
     w2Income: Math.max(0, nf(input.w2Other)),
-    w2Withheld: Math.max(0, nf(input.w2Withheld)),
+    // Withholding is typed on the side-business tile or on the Result screen; a
+    // tile without the field must not zero what the member already entered.
+    w2Withheld: input.w2Withheld === undefined || input.w2Withheld === '' ? nf(pc.w2Withheld) : Math.max(0, nf(input.w2Withheld)),
   })
-  clearActiveRecord()
+  // Updating an open record (new P&L, same business) keeps it the active record so
+  // Save upserts it; a fresh scenario starts a new one.
+  if (!keepRecord) clearActiveRecord()
   writeDirtyFlag(true)
   return entity
+}
+
+/** The Numbers-screen inputs for the tile currently in the session, so "Update
+ *  with a new P&L" opens with last time's figures in place. Null when the
+ *  session holds no entity for that tile. */
+export function readNumbersForTile(tileKey) {
+  const t = tileByKey(tileKey)
+  if (!t) return null
+  const ents = readStep1State().entities || []
+  const e = ents.find(x => x && x.simpleFlowTile === t.key) || ents.find(x => x && x.type === t.entityType)
+  if (!e) return null
+  const pc = readPersonalContext()
+  const pnl = e.pnl || {}
+  const money = (x) => (nf(x) ? String(nf(x)) : '')
+  const isRental = t.fields.includes('rent')
+  return {
+    revenue: money(pnl.grossRevenue),
+    expenses: money(isRental ? Math.max(0, nf(pnl.totalExpenses) - nf(pnl.depreciation)) : nf(pnl.totalExpenses) - nf(pnl.officerSalary) - nf(pnl.employerPayrollTax)),
+    officerSalary: money(pnl.officerSalary),
+    depreciation: money(pnl.depreciation),
+    ownership: String(e.own || '100'),
+    filingStatus: pc.filingStatus || 'single',
+    w2Other: money(pc.w2Income),
+    w2Withheld: money(pc.w2Withheld),
+  }
 }
 
 /** The few personal figures the Result screen edits in place (with Advanced

@@ -112,6 +112,7 @@ export default function ResultScreen() {
     )
   }
 
+  const updateTile = (entities.find(e => e && e.simpleFlowTile) || {}).simpleFlowTile || 'scorp'
   const total = ok ? summary.totalTax : null
   const rate = ok && summary.agi > 0 ? effectiveRate(summary.totalTax, summary.agi) : null
   const nextAmt = ok ? (summary.quarterlyRecommended || 0) : 0
@@ -158,8 +159,9 @@ export default function ResultScreen() {
           <>
             <p style={{ fontSize: 13, color: SL, margin: '0 0 12px' }}>Optional. The number above updates as you type.</p>
             <MoreAccurate onChange={() => setTick(t => t + 1)} />
-            <div style={{ marginTop: 10 }}>
-              <button style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }} onClick={() => nav('/review')}>Have last year's return? Upload it and the carryforwards fill in →</button>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13, textAlign: 'left' }} onClick={() => nav(`/numbers?tile=${encodeURIComponent(updateTile)}&update=1`)}>New month, new P&L? Update these numbers →</button>
+              <button style={{ background: 'none', border: 'none', color: B, fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13, textAlign: 'left' }} onClick={() => nav('/review')}>Have last year's return? Upload it and the carryforwards fill in →</button>
             </div>
             <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <SaveInline />
