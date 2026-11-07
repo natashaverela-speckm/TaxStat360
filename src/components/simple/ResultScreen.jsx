@@ -81,16 +81,23 @@ function MoreAccurate({ onChange }) {
 function SaveInline() {
   const [name, setName] = useState('')
   const [state, setState] = useState('idle')   // idle | saving | saved | error
+  const [why, setWhy] = useState('')
   const save = async () => {
-    setState('saving')
+    setState('saving'); setWhy('')
     try { await saveSimpleRecord(name); setState('saved'); setTimeout(() => setState('idle'), 3000) }
-    catch { setState('error') }
+    catch (e) {
+      // The record is kept in this browser either way; say why the account copy
+      // failed (status + server detail) so support can act on the message.
+      const status = e && e.status ? ` (${e.status})` : ''
+      setWhy(`${(e && e.message) || 'Could not reach the server'}${status}`)
+      setState('error')
+    }
   }
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Name it (optional)" aria-label="Record name" style={{ padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 10, fontSize: 14, color: N, minWidth: 180 }} />
       <button onClick={save} disabled={state === 'saving'} style={{ ...linkBtn, background: B, color: '#fff', border: '1px solid ' + B }}>{state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved ✓' : 'Save this record'}</button>
-      {state === 'error' && <span role="alert" style={{ fontSize: 13, color: R }}>Save failed. Try again.</span>}
+      {state === 'error' && <span role="alert" style={{ fontSize: 13, color: R }}>Not saved to your account — {why}. It is kept in this browser; try again or email support@taxstat360.com.</span>}
     </div>
   )
 }
