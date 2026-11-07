@@ -148,6 +148,12 @@ describe('Screens 2 and 3 — the acceptance walk', () => {
     expect(screen.getByLabelText('What you paid yourself on payroll (W-2)').value).toBe('80,000')
     // 186,120 total − 80,000 officer − 6,120 employer payroll tax on it = 100,000
     expect(screen.getByLabelText("What the business spent (not counting your own pay)").value).toBe('100,000')
+    // "Something look off?": correcting a report line recomputes the fields
+    expect(screen.getByText('Something look off? Change any number here.')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('P&L Other expenses'), { target: { value: '20000' } })
+    expect(screen.getByLabelText("What the business spent (not counting your own pay)").value).toBe('120,000')
+    fireEvent.change(screen.getByLabelText('P&L Total income'), { target: { value: '350000' } })
+    expect(screen.getByLabelText('What the business took in this year').value).toBe('350,000')
   })
 
   it('a PDF that is not a P&L is refused with a plain message', async () => {
